@@ -95,7 +95,7 @@ def run_download_job(job: DownloadJob) -> None:
     output_filename = job["url_tokens"]["filename"]
     with open(output_filename, "wb") as output:
         output.seek(start)
-        blob.download_to_file(output, start=start, end=end, raw_download=True)
+        blob.download_to_file(output, start=start, end=end)
     return True
 
 
