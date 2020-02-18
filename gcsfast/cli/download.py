@@ -29,7 +29,7 @@ from gcsfast.constants import (DEFAULT_MAXIMUM_DOWNLOAD_SLICE_SIZE,
                                DEFAULT_MINIMUM_DOWNLOAD_SLICE_SIZE)
 
 io.DEFAULT_BUFFER_SIZE = 131072
-THREAD_COUNT = [2]
+THREAD_COUNT = [1]
 LOG = getLogger(__name__)
 
 

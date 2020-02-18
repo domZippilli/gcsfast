@@ -68,7 +68,7 @@ def init(log_level: str = None) -> None:
     "--threads",
     required=False,
     help=
-    "Set number of threads (per process) for simultaneous downloads. Default is 2.",
+    "Set number of threads (per process) for simultaneous downloads. Default is 1.",
     default=None,
     type=int)
 @click.option(
