@@ -55,14 +55,49 @@ def init(log_level: str = None) -> None:
 
 @main.command()
 @click.pass_context
-@click.option("-p",
-              "--processes",
-              required=False,
-              help="Set number of processes for simultaneous downloads.",
-              default=None, type=int)
+@click.option(
+    "-p",
+    "--processes",
+    required=False,
+    help=
+    "Set number of processes for simultaneous downloads. Default is multiprocessing.cpu_count().",
+    default=None,
+    type=int)
+@click.option(
+    "-i",
+    "--io_buffer",
+    required=False,
+    help=
+    "Set io.DEFAULT_BUFFER_SIZE, which determines the size of writes to disk, in bytes. Default is 128KB.",
+    default=None,
+    type=int)
+@click.option(
+    "-n",
+    "--min_slice",
+    required=False,
+    help="Set the minimum slice size to use, in bytes. Default is 64MiB.",
+    default=None,
+    type=int)
+@click.option(
+    "-m",
+    "--max_slice",
+    required=False,
+    help="Set the maximum slice size to use, in bytes. Default is 1GiB.",
+    default=None,
+    type=int)
+@click.option(
+    "-s",
+    "--slice_size",
+    required=False,
+    help=
+    "Set the slice size to use, in bytes. Use this to override the slice calculation with your own value.",
+    default=None,
+    type=int)
 @click.argument('object_path')
 @click.argument('file_path', type=click.Path(), required=False)
-def download(context: object, processes: int, object_path: str, file_path: str) -> None:
+def download(context: object, processes: int, io_buffer: int, min_slice: int,
+             max_slice: int, slice_size: int, object_path: str,
+             file_path: str) -> None:
     """
     Download a GCS object as fast as possible.
 
@@ -70,7 +105,8 @@ def download(context: object, processes: int, object_path: str, file_path: str) 
     FILE_PATH is the filesystem path for the downloaded object.
     """
     init(**context.obj)
-    return download_command(processes, object_path, file_path)
+    return download_command(processes, io_buffer, min_slice, max_slice,
+                            slice_size, object_path, file_path)
 
 
 if __name__ == "__main__":

@@ -43,8 +43,13 @@ class DownloadJob(dict):
         return super().__str__()
 
 
-def download_command(processes: int, object_path: str,
+def download_command(processes: int, io_buffer: int, min_slice: int,
+                     max_slice: int, slice_size: int, object_path: str,
                      output_file: str) -> None:
+    # Set IO buffer
+    if io_buffer:
+        io.DEFAULT_BUFFER_SIZE = io_buffer
+
     # Tokenize URL
     url_tokens = tokenize_gcs_url(object_path)
 
@@ -52,7 +57,7 @@ def download_command(processes: int, object_path: str,
     if output_file:
         url_tokens["filename"] = output_file
 
-    # Get parallelism
+    # Get processes
     workers = processes if processes else cpu_count()
     LOG.debug("Worker count: %i", workers)
 
@@ -62,7 +67,8 @@ def download_command(processes: int, object_path: str,
     blob = get_blob(bucket, url_tokens)
 
     # Calculate the optimal slice size, within bounds
-    slice_size = calculate_slice_size(blob.size, workers)
+    slice_size = slice_size if slice_size else calculate_slice_size(
+        blob.size, workers, min_slice, max_slice)
     LOG.info("Final slice size\t: {}".format(slice_size))
 
     # Form definitions of each download job
@@ -114,7 +120,7 @@ def run_download_job(job: DownloadJob) -> None:
 def calculate_jobs(url_tokens: Dict[str, str], slice_size: int,
                    blob_size: int) -> List[DownloadJob]:
     jobs = []
-    slice_number = 0
+    slice_number = 1
     start = 0
     finish = -1
     while finish < blob_size:
@@ -127,20 +133,21 @@ def calculate_jobs(url_tokens: Dict[str, str], slice_size: int,
     return jobs
 
 
-def calculate_slice_size(blob_size: int, jobs: int) -> int:
+def calculate_slice_size(blob_size: int, jobs: int, min_override: int,
+                         max_override: int) -> int:
+    min_slice_size = min_override if min_override else DEFAULT_MINIMUM_DOWNLOAD_SLICE_SIZE
+    max_slice_size = max_override if max_override else DEFAULT_MAXIMUM_DOWNLOAD_SLICE_SIZE
     LOG.info("Blob size\t\t: {}".format(blob_size))
-    LOG.info(
-        "Minimum slice size\t: {}".format(DEFAULT_MINIMUM_DOWNLOAD_SLICE_SIZE))
-    LOG.info(
-        "Maximum slice size\t: {}".format(DEFAULT_MAXIMUM_DOWNLOAD_SLICE_SIZE))
-    if blob_size < DEFAULT_MINIMUM_DOWNLOAD_SLICE_SIZE:
+    LOG.info("Minimum slice size\t: {}".format(min_slice_size))
+    LOG.info("Maximum slice size\t: {}".format(max_slice_size))
+    if blob_size < min_slice_size:
         # No point in slicing.
         return blob_size
     evenly_among_workers = int(blob_size / jobs)
-    if evenly_among_workers < DEFAULT_MINIMUM_DOWNLOAD_SLICE_SIZE:
-        return DEFAULT_MINIMUM_DOWNLOAD_SLICE_SIZE
-    if evenly_among_workers > DEFAULT_MAXIMUM_DOWNLOAD_SLICE_SIZE:
-        return DEFAULT_MAXIMUM_DOWNLOAD_SLICE_SIZE
+    if evenly_among_workers < min_slice_size:
+        return min_slice_size
+    if evenly_among_workers > max_slice_size:
+        return max_slice_size
     return evenly_among_workers
 
 
