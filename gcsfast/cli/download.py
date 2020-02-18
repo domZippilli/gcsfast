@@ -67,6 +67,7 @@ def download_command(processes: int, object_path: str,
 
     # Form definitions of each download job
     jobs = calculate_jobs(url_tokens, slice_size, blob.size)
+    LOG.info("Slice count: %i", len(jobs))
 
     # Fan out the slice jobs
     with ProcessPoolExecutor(max_workers=workers) as executor:
@@ -74,7 +75,7 @@ def download_command(processes: int, object_path: str,
         if all(executor.map(run_download_job, jobs)):
             elapsed = time() - start_time
             LOG.info(
-                "Overall: %fs elapsed for %iMB download, %i Mbits per second.",
+                "Overall: %.1fs elapsed for %iMB download, %i Mbits per second.",
                 elapsed, blob.size / 1000 / 1000,
                 int((blob.size / elapsed) * 8 / 1000 / 1000))
         else:
@@ -104,7 +105,7 @@ def run_download_job(job: DownloadJob) -> None:
     elapsed = time() - start_time
     # Log stats and return.
     bytes_downloaded = end - start
-    LOG.info("Slice #%i: %fs elapsed for %iMB download, %i Mbits per second",
+    LOG.info("Slice #%i: %.1fs elapsed for %iMB download, %i Mbits per second",
              job["slice_number"], elapsed, bytes_downloaded / 1000 / 1000,
              int((bytes_downloaded / elapsed) * 8 / 1000 / 1000))
     return True
