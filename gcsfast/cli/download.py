@@ -73,10 +73,10 @@ def download_command(processes: int, object_path: str,
         start_time = time()
         if all(executor.map(run_download_job, jobs)):
             elapsed = time() - start_time
-            LOG.info("%fs elapsed for %iMB download.", elapsed,
-                     blob.size / 1000 / 1000)
-            LOG.info("%i Mbits per second",
-                     int((blob.size / elapsed) * 8 / 1000 / 1000))
+            LOG.info(
+                "Overall: %fs elapsed for %iMB download, %i Mbits per second.",
+                elapsed, blob.size / 1000 / 1000,
+                int((blob.size / elapsed) * 8 / 1000 / 1000))
         else:
             print("Something went wrong! Download again.")
             exit(1)
@@ -85,17 +85,28 @@ def download_command(processes: int, object_path: str,
 
 
 def run_download_job(job: DownloadJob) -> None:
+    # Get client and blob for this process.
     gcs = get_client()
     url_tokens = job["url_tokens"]
     bucket = get_bucket(gcs, url_tokens)
     blob = get_blob(bucket, url_tokens)
+    # Set blob transfer chunk size.
     blob.chunk_size = 262144 * 4 * 16
+    # Retrieve remaining job details.
     start = job["start"]
     end = job["end"]
     output_filename = job["url_tokens"]["filename"]
+    # Perform download.
+    start_time = time()
     with open(output_filename, "wb") as output:
         output.seek(start)
         blob.download_to_file(output, start=start, end=end)
+    elapsed = time() - start_time
+    # Log stats and return.
+    bytes_downloaded = end - start
+    LOG.info("Slice #%i: %fs elapsed for %iMB download, %i Mbits per second",
+             job["slice_number"], elapsed, bytes_downloaded / 1000 / 1000,
+             int((bytes_downloaded / elapsed) * 8 / 1000 / 1000))
     return True
 
 
