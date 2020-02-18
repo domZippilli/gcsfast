@@ -30,6 +30,7 @@ from gcsfast.constants import (DEFAULT_MAXIMUM_DOWNLOAD_SLICE_SIZE,
 
 io.DEFAULT_BUFFER_SIZE = 131072
 THREAD_COUNT = [1]
+TRANSFER_CHUNK_SIZE = [262144 * 4 * 16]
 LOG = getLogger(__name__)
 
 
@@ -46,10 +47,15 @@ class DownloadJob(dict):
 
 def download_command(processes: int, threads: int, io_buffer: int,
                      min_slice: int, max_slice: int, slice_size: int,
-                     object_path: str, output_file: str) -> None:
-    # Set IO buffer
+                     transfer_chunk: int, object_path: str,
+                     output_file: str) -> None:
+    # Set global tunables
     if io_buffer:
         io.DEFAULT_BUFFER_SIZE = io_buffer
+    if transfer_chunk:
+        TRANSFER_CHUNK_SIZE[0] = transfer_chunk
+    if threads:
+        THREAD_COUNT[0] = threads 
 
     # Tokenize URL
     url_tokens = tokenize_gcs_url(object_path)
@@ -61,8 +67,6 @@ def download_command(processes: int, threads: int, io_buffer: int,
     # Get processes
     workers = processes if processes else cpu_count()
     LOG.debug("Worker count: %i", workers)
-    # Get threads
-    THREAD_COUNT[0] = threads if threads else THREAD_COUNT[0]
     LOG.debug("Threads per worker: %i", THREAD_COUNT[0])
 
     # Get the object metadata
@@ -103,7 +107,7 @@ def run_download_job(job: DownloadJob) -> bool:
     bucket = get_bucket(gcs, url_tokens)
     blob = get_blob(bucket, url_tokens)
     # Set blob transfer chunk size.
-    blob.chunk_size = 262144 * 4 * 16
+    blob.chunk_size = TRANSFER_CHUNK_SIZE[0]
     # Retrieve remaining job details.
     start = job["start"]
     end = job["end"]
@@ -119,7 +123,8 @@ def run_download_job(job: DownloadJob) -> bool:
     start_time = time()
     with ThreadPoolExecutor(max_workers=THREAD_COUNT[0]) as executor:
         ranges = subdivide_range(start, end, THREAD_COUNT[0])
-        LOG.debug("Slice #%i: divided into ranges (per thread): %s", job["slice_number"], ranges)
+        LOG.debug("Slice #%i: divided into ranges (per thread): %s",
+                  job["slice_number"], ranges)
         # Perform download.
         if not all(executor.map(_download_range, ranges)):
             return False

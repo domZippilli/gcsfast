@@ -101,20 +101,30 @@ def init(log_level: str = None) -> None:
     "Set the slice size to use, in bytes. Use this to override the slice calculation with your own value.",
     default=None,
     type=int)
+@click.option(
+    "-c",
+    "--transfer_chunk",
+    required=False,
+    help=
+    "Set the GCS transfer chunk size to use, in bytes. Must be a multiple of 262144. Default is 262144 * 4 * 16 (16MiB), "
+    "which covers most cases quite well. Recommend setting this using shell evaluation, e.g. $((262144 * 4 * DESIRED_MB)).",
+    default=None,
+    type=int)
 @click.argument('object_path')
 @click.argument('file_path', type=click.Path(), required=False)
 def download(context: object, processes: int, threads: int, io_buffer: int,
-             min_slice: int, max_slice: int, slice_size: int, object_path: str,
-             file_path: str) -> None:
+             min_slice: int, max_slice: int, slice_size: int,
+             transfer_chunk: int, object_path: str, file_path: str) -> None:
     """
     Download a GCS object as fast as possible.
 
-    OBJECT_PATH is the path to the object (use gs:// protocol).
+    OBJECT_PATH is the path to the object (use gs:// protocol).\n
     FILE_PATH is the filesystem path for the downloaded object.
     """
     init(**context.obj)
     return download_command(processes, threads, io_buffer, min_slice,
-                            max_slice, slice_size, object_path, file_path)
+                            max_slice, slice_size, transfer_chunk, object_path,
+                            file_path)
 
 
 if __name__ == "__main__":
