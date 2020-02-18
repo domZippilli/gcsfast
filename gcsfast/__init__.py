@@ -64,6 +64,14 @@ def init(log_level: str = None) -> None:
     default=None,
     type=int)
 @click.option(
+    "-t",
+    "--threads",
+    required=False,
+    help=
+    "Set number of threads (per process) for simultaneous downloads. Default is 2.",
+    default=None,
+    type=int)
+@click.option(
     "-i",
     "--io_buffer",
     required=False,
@@ -95,8 +103,8 @@ def init(log_level: str = None) -> None:
     type=int)
 @click.argument('object_path')
 @click.argument('file_path', type=click.Path(), required=False)
-def download(context: object, processes: int, io_buffer: int, min_slice: int,
-             max_slice: int, slice_size: int, object_path: str,
+def download(context: object, processes: int, threads: int, io_buffer: int,
+             min_slice: int, max_slice: int, slice_size: int, object_path: str,
              file_path: str) -> None:
     """
     Download a GCS object as fast as possible.
@@ -105,8 +113,8 @@ def download(context: object, processes: int, io_buffer: int, min_slice: int,
     FILE_PATH is the filesystem path for the downloaded object.
     """
     init(**context.obj)
-    return download_command(processes, io_buffer, min_slice, max_slice,
-                            slice_size, object_path, file_path)
+    return download_command(processes, threads, io_buffer, min_slice,
+                            max_slice, slice_size, object_path, file_path)
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ Implementation of "download" command.
 """
 import io
 import fileinput
-from concurrent.futures import as_completed, wait, ProcessPoolExecutor
+from concurrent.futures import as_completed, wait, ProcessPoolExecutor, ThreadPoolExecutor
 from logging import getLogger
 from multiprocessing import cpu_count
 from pprint import pprint
@@ -29,6 +29,7 @@ from gcsfast.constants import (DEFAULT_MAXIMUM_DOWNLOAD_SLICE_SIZE,
                                DEFAULT_MINIMUM_DOWNLOAD_SLICE_SIZE)
 
 io.DEFAULT_BUFFER_SIZE = 131072
+THREAD_COUNT = [2]
 LOG = getLogger(__name__)
 
 
@@ -43,9 +44,9 @@ class DownloadJob(dict):
         return super().__str__()
 
 
-def download_command(processes: int, io_buffer: int, min_slice: int,
-                     max_slice: int, slice_size: int, object_path: str,
-                     output_file: str) -> None:
+def download_command(processes: int, threads: int, io_buffer: int,
+                     min_slice: int, max_slice: int, slice_size: int,
+                     object_path: str, output_file: str) -> None:
     # Set IO buffer
     if io_buffer:
         io.DEFAULT_BUFFER_SIZE = io_buffer
@@ -60,6 +61,9 @@ def download_command(processes: int, io_buffer: int, min_slice: int,
     # Get processes
     workers = processes if processes else cpu_count()
     LOG.debug("Worker count: %i", workers)
+    # Get threads
+    THREAD_COUNT[0] = threads if threads else THREAD_COUNT[0]
+    LOG.debug("Threads per worker: %i", THREAD_COUNT[0])
 
     # Get the object metadata
     gcs = get_client()
@@ -82,7 +86,7 @@ def download_command(processes: int, io_buffer: int, min_slice: int,
         if all(executor.map(run_download_job, jobs)):
             elapsed = time() - start_time
             LOG.info(
-                "Overall: %.1fs elapsed for %iMB download, %i Mbits per second.",
+                "Overall: %.1fs elapsed for %i MB download, %i Mbits per second.",
                 elapsed, blob.size / 1000 / 1000,
                 int((blob.size / elapsed) * 8 / 1000 / 1000))
         else:
@@ -92,7 +96,7 @@ def download_command(processes: int, io_buffer: int, min_slice: int,
     # TODO: Final checksum
 
 
-def run_download_job(job: DownloadJob) -> None:
+def run_download_job(job: DownloadJob) -> bool:
     # Get client and blob for this process.
     gcs = get_client()
     url_tokens = job["url_tokens"]
@@ -104,18 +108,43 @@ def run_download_job(job: DownloadJob) -> None:
     start = job["start"]
     end = job["end"]
     output_filename = job["url_tokens"]["filename"]
-    # Perform download.
+
+    def _download_range(start_and_end: tuple):
+        s, e = start_and_end
+        with open(output_filename, "wb") as output:
+            output.seek(s)
+            blob.download_to_file(output, start=s, end=e)
+        return True
+
     start_time = time()
-    with open(output_filename, "wb") as output:
-        output.seek(start)
-        blob.download_to_file(output, start=start, end=end)
+    with ThreadPoolExecutor(max_workers=THREAD_COUNT[0]) as executor:
+        ranges = subdivide_range(start, end, THREAD_COUNT[0])
+        LOG.debug("Slice #%i: divided into ranges (per thread): %s", job["slice_number"], ranges)
+        # Perform download.
+        if not all(executor.map(_download_range, ranges)):
+            return False
     elapsed = time() - start_time
+
     # Log stats and return.
     bytes_downloaded = end - start
-    LOG.info("Slice #%i: %.1fs elapsed for %iMB download, %i Mbits per second",
-             job["slice_number"], elapsed, bytes_downloaded / 1000 / 1000,
-             int((bytes_downloaded / elapsed) * 8 / 1000 / 1000))
+    LOG.info(
+        "Slice #%i: %.1fs elapsed for %i MB download, %i Mbits per second",
+        job["slice_number"], elapsed, bytes_downloaded / 1000 / 1000,
+        int((bytes_downloaded / elapsed) * 8 / 1000 / 1000))
     return True
+
+
+def subdivide_range(range_start, range_end, subdivisions: int) -> List[tuple]:
+    range_size = range_end - range_start
+    subrange_size = int(range_size / subdivisions)  # truncate the float
+    ranges = []
+    start = range_start
+    finish = -1
+    while finish < range_end:
+        finish = start + subrange_size
+        ranges.append((start, min(finish, range_end)))
+        start = finish + 1
+    return ranges
 
 
 def calculate_jobs(url_tokens: Dict[str, str], slice_size: int,
