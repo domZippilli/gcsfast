@@ -65,6 +65,7 @@ def download_command(processes: int, io_buffer: int, min_slice: int,
     gcs = get_client()
     bucket = get_bucket(gcs, url_tokens)
     blob = get_blob(bucket, url_tokens)
+    LOG.info("Blob size\t\t: {}".format(blob.size))
 
     # Calculate the optimal slice size, within bounds
     slice_size = slice_size if slice_size else calculate_slice_size(
@@ -137,7 +138,6 @@ def calculate_slice_size(blob_size: int, jobs: int, min_override: int,
                          max_override: int) -> int:
     min_slice_size = min_override if min_override else DEFAULT_MINIMUM_DOWNLOAD_SLICE_SIZE
     max_slice_size = max_override if max_override else DEFAULT_MAXIMUM_DOWNLOAD_SLICE_SIZE
-    LOG.info("Blob size\t\t: {}".format(blob_size))
     LOG.info("Minimum slice size\t: {}".format(min_slice_size))
     LOG.info("Maximum slice size\t: {}".format(max_slice_size))
     if blob_size < min_slice_size:
