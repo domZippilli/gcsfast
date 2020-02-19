@@ -77,12 +77,12 @@ def download_command(processes: int, threads: int, io_buffer: int,
     gcs = get_client()
     bucket = get_bucket(gcs, url_tokens)
     blob = get_blob(bucket, url_tokens)
-    LOG.info("Blob size\t\t: {}".format(blob.size))
+    LOG.info("Blob size\t\t: {} ({} MB)".format(blob.size, b_to_mb(blob.size)))
 
     # Calculate the optimal slice size, within bounds
     slice_size = slice_size if slice_size else calculate_slice_size(
         blob.size, workers, min_slice, max_slice, THREAD_COUNT[0])
-    LOG.info("Final slice size\t: {}".format(slice_size))
+    LOG.info("Final slice size\t: {} MB".format(b_to_mb(slice_size)))
 
     # Form definitions of each download job
     jobs = calculate_jobs(url_tokens, slice_size, blob.size)
@@ -94,8 +94,8 @@ def download_command(processes: int, threads: int, io_buffer: int,
         if all(executor.map(run_download_job, jobs)):
             elapsed = time() - start_time
             LOG.info(
-                "Overall: %.1fs elapsed for %i MB download, %i Mbits per second.",
-                elapsed, blob.size / 1000 / 1000,
+                "Overall: %.1fs elapsed for %.1f MB download, %i Mbits per second.",
+                elapsed, b_to_mb(blob.size),
                 int((blob.size / elapsed) * 8 / 1000 / 1000))
         else:
             print("Something went wrong! Download again.")
@@ -137,8 +137,8 @@ def run_download_job(job: DownloadJob) -> bool:
     # Log stats and return.
     bytes_downloaded = end - start
     LOG.info(
-        "Slice #%i: %.1fs elapsed for %i MB download, %i Mbits per second",
-        job["slice_number"], elapsed, bytes_downloaded / 1000 / 1000,
+        "Slice #%i: %.1fs elapsed for %i MB slice, %i Mbits per second",
+        job["slice_number"], elapsed, b_to_mb(bytes_downloaded),
         int((bytes_downloaded / elapsed) * 8 / 1000 / 1000))
     return True
 
@@ -176,8 +176,8 @@ def calculate_slice_size(blob_size: int, jobs: int, min_override: int,
                          max_override: int, multiplier: int) -> int:
     min_slice_size = min_override if min_override else DEFAULT_MINIMUM_DOWNLOAD_SLICE_SIZE * multiplier
     max_slice_size = max_override if max_override else DEFAULT_MAXIMUM_DOWNLOAD_SLICE_SIZE * multiplier
-    LOG.info("Minimum slice size\t: {}".format(min_slice_size))
-    LOG.info("Maximum slice size\t: {}".format(max_slice_size))
+    LOG.info("Minimum slice size\t: {} MB".format(b_to_mb(min_slice_size)))
+    LOG.info("Maximum slice size\t: {} MB".format(b_to_mb(max_slice_size)))
     if blob_size < min_slice_size:
         # No point in slicing.
         return blob_size
@@ -228,3 +228,6 @@ def get_blob(bucket: storage.Bucket, url_tokens: str) -> storage.Blob:
     except Exception as e:
         LOG.error("Error accessing object: {}\n\t{}".format(
             url_tokens["path"], e))
+
+def b_to_mb(byts: int):
+    return round(byts / 1000 / 1000, 1)
