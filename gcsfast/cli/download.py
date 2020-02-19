@@ -14,9 +14,10 @@
 """
 Implementation of "download" command.
 """
-import io
 import fileinput
-from concurrent.futures import as_completed, wait, ProcessPoolExecutor, ThreadPoolExecutor
+import io
+from concurrent.futures import (ProcessPoolExecutor, ThreadPoolExecutor,
+                                as_completed, wait)
 from logging import getLogger
 from multiprocessing import cpu_count
 from pprint import pprint
@@ -37,6 +38,14 @@ LOG = getLogger(__name__)
 
 
 class DownloadJob(dict):
+    """Describes a download job. 
+    
+    Arguments:
+        dict {[type]} -- [description]
+    
+    Returns:
+        [type] -- [description]
+    """
     def __init__(self, url_tokens, start, end, slice_number):
         self["url_tokens"] = url_tokens
         self["start"] = start
@@ -65,6 +74,7 @@ def download_command(processes: int, threads: int, io_buffer: int,
     url_tokens = tokenize_gcs_url(object_path)
 
     # Override the output file if it's given
+    # TODO: move this out of the tokens into the job definition
     if output_file:
         url_tokens["filename"] = output_file
 
@@ -90,7 +100,7 @@ def download_command(processes: int, threads: int, io_buffer: int,
 
     # Fan out the slice jobs
     with ProcessPoolExecutor(max_workers=workers) as executor:
-        LOG.info("Beginning download...")
+        LOG.info("Beginning download of %s to %s...", object_path, url_tokens["filename"])
         start_time = time()
         if all(executor.map(run_download_job, jobs)):
             elapsed = time() - start_time
@@ -137,10 +147,9 @@ def run_download_job(job: DownloadJob) -> bool:
 
     # Log stats and return.
     bytes_downloaded = end - start
-    LOG.info(
-        "Slice #%i: %.1fs elapsed for %i MB slice, %i Mbits per second",
-        job["slice_number"], elapsed, b_to_mb(bytes_downloaded),
-        int((bytes_downloaded / elapsed) * 8 / 1000 / 1000))
+    LOG.info("Slice #%i: %.1fs elapsed for %i MB slice, %i Mbits per second",
+             job["slice_number"], elapsed, b_to_mb(bytes_downloaded),
+             int((bytes_downloaded / elapsed) * 8 / 1000 / 1000))
     return True
 
 
@@ -184,10 +193,14 @@ def calculate_slice_size(blob_size: int, jobs: int, min_override: int,
         return blob_size
     evenly_among_workers = int(blob_size / jobs)
     if evenly_among_workers < min_slice_size:
-        LOG.info("Blob will be sliced into minimum slice sizes; there will be fewer slices than workers. You may want to specify a smaller (minimum) slice size.")
+        LOG.info(
+            "Blob will be sliced into minimum slice sizes; there will be fewer slices than workers. You may want to specify a smaller (minimum) slice size."
+        )
         return min_slice_size
     if evenly_among_workers > max_slice_size:
-        LOG.info("Blob will be sliced into maximum slice sizes; there will be more slices than workers (this is OK as long as workers optimize throughput).")
+        LOG.info(
+            "Blob will be sliced into maximum slice sizes; there will be more slices than workers (this is OK as long as workers optimize throughput)."
+        )
         return max_slice_size
     LOG.info("Blob can be sliced evenly among workers.")
     return evenly_among_workers
@@ -232,6 +245,7 @@ def get_blob(bucket: storage.Bucket, url_tokens: str) -> storage.Blob:
     except Exception as e:
         LOG.error("Error accessing object: {}\n\t{}".format(
             url_tokens["path"], e))
+
 
 def b_to_mb(byts: int):
     return round(byts / 1000 / 1000, 1)
