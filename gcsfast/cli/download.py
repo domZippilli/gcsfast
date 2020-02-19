@@ -90,6 +90,7 @@ def download_command(processes: int, threads: int, io_buffer: int,
 
     # Fan out the slice jobs
     with ProcessPoolExecutor(max_workers=workers) as executor:
+        LOG.info("Beginning download...")
         start_time = time()
         if all(executor.map(run_download_job, jobs)):
             elapsed = time() - start_time
@@ -186,7 +187,7 @@ def calculate_slice_size(blob_size: int, jobs: int, min_override: int,
         LOG.info("Blob will be sliced into minimum slice sizes; there will be fewer slices than workers. You may want to specify a smaller (minimum) slice size.")
         return min_slice_size
     if evenly_among_workers > max_slice_size:
-        LOG.info("Blob will be sliced into maximum slice sizes; there will be more slices than workers (this is OK).")
+        LOG.info("Blob will be sliced into maximum slice sizes; there will be more slices than workers (this is OK as long as workers optimize throughput).")
         return max_slice_size
     LOG.info("Blob can be sliced evenly among workers.")
     return evenly_among_workers
