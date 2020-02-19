@@ -28,7 +28,9 @@ from google.cloud import storage
 from gcsfast.constants import (DEFAULT_MAXIMUM_DOWNLOAD_SLICE_SIZE,
                                DEFAULT_MINIMUM_DOWNLOAD_SLICE_SIZE)
 
+# TODO move these to a dict or a class
 io.DEFAULT_BUFFER_SIZE = 131072
+PROCESS_COUNT = [cpu_count()]
 THREAD_COUNT = [1]
 TRANSFER_CHUNK_SIZE = [262144 * 4 * 16]
 LOG = getLogger(__name__)
@@ -54,8 +56,10 @@ def download_command(processes: int, threads: int, io_buffer: int,
         io.DEFAULT_BUFFER_SIZE = io_buffer
     if transfer_chunk:
         TRANSFER_CHUNK_SIZE[0] = transfer_chunk
+    if processes:
+        PROCESS_COUNT[0] = processes
     if threads:
-        THREAD_COUNT[0] = threads 
+        THREAD_COUNT[0] = threads
 
     # Tokenize URL
     url_tokens = tokenize_gcs_url(object_path)
@@ -66,7 +70,7 @@ def download_command(processes: int, threads: int, io_buffer: int,
 
     # Get processes
     workers = processes if processes else cpu_count()
-    LOG.debug("Worker count: %i", workers)
+    LOG.debug("Worker process count: %i", workers)
     LOG.debug("Threads per worker: %i", THREAD_COUNT[0])
 
     # Get the object metadata
@@ -77,7 +81,7 @@ def download_command(processes: int, threads: int, io_buffer: int,
 
     # Calculate the optimal slice size, within bounds
     slice_size = slice_size if slice_size else calculate_slice_size(
-        blob.size, workers, min_slice, max_slice)
+        blob.size, workers, min_slice, max_slice, THREAD_COUNT[0])
     LOG.info("Final slice size\t: {}".format(slice_size))
 
     # Form definitions of each download job
@@ -169,9 +173,9 @@ def calculate_jobs(url_tokens: Dict[str, str], slice_size: int,
 
 
 def calculate_slice_size(blob_size: int, jobs: int, min_override: int,
-                         max_override: int) -> int:
-    min_slice_size = min_override if min_override else DEFAULT_MINIMUM_DOWNLOAD_SLICE_SIZE
-    max_slice_size = max_override if max_override else DEFAULT_MAXIMUM_DOWNLOAD_SLICE_SIZE
+                         max_override: int, multiplier: int) -> int:
+    min_slice_size = min_override if min_override else DEFAULT_MINIMUM_DOWNLOAD_SLICE_SIZE * multiplier
+    max_slice_size = max_override if max_override else DEFAULT_MAXIMUM_DOWNLOAD_SLICE_SIZE * multiplier
     LOG.info("Minimum slice size\t: {}".format(min_slice_size))
     LOG.info("Maximum slice size\t: {}".format(max_slice_size))
     if blob_size < min_slice_size:

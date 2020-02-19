@@ -68,7 +68,8 @@ def init(log_level: str = None) -> None:
     "--threads",
     required=False,
     help=
-    "Set number of threads (per process) for simultaneous downloads. Default is 1.",
+    "Set number of threads (per process) for simultaneous downloads. Default is 1."
+    " Default slice limits will be multiplied by this value (as slices are subdivided into threads).",
     default=None,
     type=int)
 @click.option(
@@ -106,8 +107,8 @@ def init(log_level: str = None) -> None:
     "--transfer_chunk",
     required=False,
     help=
-    "Set the GCS transfer chunk size to use, in bytes. Must be a multiple of 262144. Default is 262144 * 4 * 16 (16MiB), "
-    "which covers most cases quite well. Recommend setting this using shell evaluation, e.g. $((262144 * 4 * DESIRED_MB)).",
+    "Set the GCS transfer chunk size to use, in bytes. Must be a multiple of 262144. Default is 262144 * 4 * 16 (16MiB),"
+    " which covers most cases quite well. Recommend setting this using shell evaluation, e.g. $((262144 * 4 * DESIRED_MB)).",
     default=None,
     type=int)
 @click.argument('object_path')
