@@ -179,13 +179,16 @@ def calculate_slice_size(blob_size: int, jobs: int, min_override: int,
     LOG.info("Minimum slice size\t: {} MB".format(b_to_mb(min_slice_size)))
     LOG.info("Maximum slice size\t: {} MB".format(b_to_mb(max_slice_size)))
     if blob_size < min_slice_size:
-        # No point in slicing.
+        LOG.info("Blob smaller than minimum slice size; cannot slice.")
         return blob_size
     evenly_among_workers = int(blob_size / jobs)
     if evenly_among_workers < min_slice_size:
+        LOG.info("Blob will be sliced into minimum slice sizes; there will be fewer slices than workers. You may want to specify a smaller (minimum) slice size.")
         return min_slice_size
     if evenly_among_workers > max_slice_size:
+        LOG.info("Blob will be sliced into maximum slice sizes; there will be more slices than workers (this is OK).")
         return max_slice_size
+    LOG.info("Blob can be sliced evenly among workers.")
     return evenly_among_workers
 
 
