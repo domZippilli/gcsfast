@@ -77,7 +77,8 @@ def stream_upload_command(threads: int, slice_size: int, object_path: str,
 
     LOG.info("Cleanup")
     for blob in slices:
-        blob.delete(client=gcs)
+        executor.submit(blob.delete, client=gcs)
+        sleep(.005) # quick and dirty rate-limiting, sorry Dijkstra
 
     LOG.info("Done")
     LOG.info("Overall seconds elapsed: {}".format(time() - start_time))
