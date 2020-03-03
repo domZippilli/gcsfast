@@ -30,13 +30,17 @@ See `--help` on each command for more info.
 ### Examples
 
 *Download an object to local file*
+
 `gcsfast -l DEBUG download -p8 gs://mybucket/myblob`
 
-*Download a series of files described in a file*
+*Download a series of objects described in a file*
+
 `gcsfast -l DEBUG download2 files.txt`
 
 *Upload from stdin with a fixed slice size*
+
 `gcsfast -l DEBUG stream_upload gs://mybucket/mystream`
 
 *Upload from file/FIFO with a fixed slice size*
+
 `gcsfast -l DEBUG stream_upload gs://mybucket/mystream myfile`
