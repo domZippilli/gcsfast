@@ -16,7 +16,7 @@ Implementation of "stream_upload" command.
 """
 import io
 from logging import getLogger
-from time import time
+from time import time, sleep
 from typing import List, Iterable
 from sys import stdin
 
@@ -73,6 +73,7 @@ def stream_upload_command(threads: int, slice_size: int, object_path: str,
         composition.insert(0, final_blob)
         LOG.debug("Composing: {}".format([blob.name for blob in composition]))
         final_blob.compose(composition, client=gcs)
+        sleep(1) # can only modify object once per second
 
     LOG.info("Cleanup")
     for blob in slices:
