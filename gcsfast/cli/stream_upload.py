@@ -48,7 +48,7 @@ def stream_upload_command(threads: int, slice_size: int, object_path: str,
         slice_bytes = input_stream.read(upload_slice_size)
         read_bytes += len(slice_bytes)  
         if slice_bytes:
-            LOG.debug("Read a slice")
+            LOG.debug("Read slice {}, {} bytes".format(slice_number, read_bytes))
             slice_blob = executor.submit(
                 upload_bytes, slice_bytes,
                 object_path + "_slice{}".format(slice_number), gcs)
@@ -92,6 +92,7 @@ def upload_bytes(bites: bytes, target: str,
     slice_reader = io.BytesIO(bites)
     blob = storage.Blob.from_string(target)
     blob.upload_from_file(slice_reader, client=client)
+    LOG.info("Completed upload of: {}".format(blob.name))
     return blob
 
 
