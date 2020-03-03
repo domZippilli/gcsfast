@@ -81,6 +81,8 @@ def stream_upload_command(no_compose: bool, threads: int, slice_size: int, objec
             executor.submit(blob.delete, client=gcs)
             sleep(.005) # quick and dirty rate-limiting, sorry Dijkstra
 
+    executor.shutdown(True)
+    
     LOG.info("Done")
     LOG.info("Overall seconds elapsed: {}".format(time() - start_time))
     LOG.info("Bytes read: {}".format(read_bytes))
