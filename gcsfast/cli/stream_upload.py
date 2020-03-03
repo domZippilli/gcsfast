@@ -39,7 +39,7 @@ def stream_upload_command(threads: int, slice_size: int, object_path: str,
 
     executor = ThreadPoolExecutor(max_workers=threads)
 
-    print("reading input")
+    LOG.info("Reading input")
     start_time = time()
     futures = []
     read_bytes = 0
@@ -48,41 +48,41 @@ def stream_upload_command(threads: int, slice_size: int, object_path: str,
         slice_bytes = input_stream.read(upload_slice_size)
         read_bytes += len(slice_bytes)  
         if slice_bytes:
-            print("read a slice")
+            LOG.debug("Read a slice")
             slice_blob = executor.submit(
                 upload_bytes, slice_bytes,
                 object_path + "_slice{}".format(slice_number), gcs)
             futures.append(slice_blob)
             slice_number += 1
         else:
-            print("EOF: {} bytes".format(read_bytes))
+            LOG.info("EOF: {} bytes".format(read_bytes))
             break
 
-    print("waiting for uploads to finish")
+    LOG.info("Waiting for uploads to finish")
     slices = []
     for slyce in futures:
         slices.append(slyce.result())
 
     transfer_time = time() - start_time
 
-    print("composing")
+    LOG.info("Composing")
     final_blob = storage.Blob.from_string(object_path)
     final_blob.upload_from_file(io.BytesIO(b''), client=gcs)
 
     for composition in composition_steps(slices):
         composition.insert(0, final_blob)
-        print("composing: {}".format([blob.name for blob in composition]))
+        LOG.debug("Composing: {}".format([blob.name for blob in composition]))
         final_blob.compose(composition, client=gcs)
 
-    print("cleanup")
+    LOG.info("Cleanup")
     for blob in slices:
         blob.delete(client=gcs)
 
-    print("done")
-    print("overall seconds elapsed: {}".format(time() - start_time))
-    print("bytes read: {}".format(read_bytes))
-    print("transfer time: {}".format(transfer_time))
-    print("transfer rate Mb/s: {}".format(
+    LOG.info("Done")
+    LOG.info("Overall seconds elapsed: {}".format(time() - start_time))
+    LOG.info("Bytes read: {}".format(read_bytes))
+    LOG.info("Transfer time: {}".format(transfer_time))
+    LOG.info("Transfer rate Mb/s: {}".format(
         b_to_mb(int(read_bytes / transfer_time)) * 8))
 
 
