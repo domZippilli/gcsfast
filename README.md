@@ -1,6 +1,6 @@
 # gcsfast
 
-Experimental fast downloader for Google Cloud Storage.
+Experimental fast file transfer for Google Cloud Storage.
 
 ## Installation
 
