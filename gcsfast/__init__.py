@@ -192,7 +192,8 @@ def download2(context: object, processes: int, threads: int, io_buffer: int,
     help=
     "Do not compose the slices.",
     default=False,
-    type=bool)
+    type=bool,
+    is_flag=True)
 @click.option(
     "-t",
     "--threads",
