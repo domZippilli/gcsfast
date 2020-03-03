@@ -15,14 +15,14 @@
 Implementation of "stream_upload" command.
 """
 import io
-from concurrent.futures import (ProcessPoolExecutor, ThreadPoolExecutor,
-                                as_completed)
 from logging import getLogger
 from time import time
 from typing import List, Iterable
 from sys import stdin
 
 from google.cloud import storage
+
+from gcsfast.thread import BoundedThreadPoolExecutor
 
 LOG = getLogger(__name__)
 
@@ -37,7 +37,7 @@ def stream_upload_command(threads: int, slice_size: int, object_path: str,
 
     upload_slice_size = slice_size
 
-    executor = ThreadPoolExecutor(max_workers=threads)
+    executor = BoundedThreadPoolExecutor(max_workers=threads, queue_size=threads+2)
 
     LOG.info("Reading input")
     start_time = time()
