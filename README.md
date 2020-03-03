@@ -11,39 +11,32 @@ Clone this repo using `git clone ...`
 ## Usage
 
 ```
-Usage: gcsfast download [OPTIONS] OBJECT_PATH [FILE_PATH]
+Usage: gcsfast [OPTIONS] COMMAND [ARGS]...
 
-  Download a GCS object as fast as possible.
-
-  OBJECT_PATH is the path to the object (use gs:// protocol).
-
-  FILE_PATH is the filesystem path for the downloaded object.
+  GCS fast file transfer tool.
 
 Options:
-  -p, --processes INTEGER       Set number of processes for simultaneous
-                                downloads. Default is
-                                multiprocessing.cpu_count().
-  -t, --threads INTEGER         Set number of threads (per process) for
-                                simultaneous downloads. Default is 1.
-  -i, --io_buffer INTEGER       Set io.DEFAULT_BUFFER_SIZE, which determines
-                                the size of writes to disk, in bytes. Default
-                                is 128KB.
-  -n, --min_slice INTEGER       Set the minimum slice size to use, in bytes.
-                                Default is 64MiB.
-  -m, --max_slice INTEGER       Set the maximum slice size to use, in bytes.
-                                Default is 1GiB.
-  -s, --slice_size INTEGER      Set the slice size to use, in bytes. Use this
-                                to override the slice calculation with your
-                                own value.
-  -c, --transfer_chunk INTEGER  Set the GCS transfer chunk size to use, in
-                                bytes. Must be a multiple of 262144. Default
-                                is 262144 * 4 * 16 (16MiB), which covers most
-                                cases quite well. Recommend setting this using
-                                shell evaluation, e.g. $((262144 * 4 *
-                                DESIRED_MB)).
-  --help                        Show this message and exit.
+  -l, --log_level TEXT  Set log level.
+  --help                Show this message and exit.
+
+Commands:
+  download       Download a GCS object as fast as possible.
+  download2      Download a stream of GCS objects as fast as possible.
+  stream-upload  Stream data of an arbitrary length into an object in GCS.
 ```
 
-### Example
+See `--help` on each command for more info.
 
+### Examples
+
+*Download an object to local file*
 `gcsfast -l DEBUG download -p8 gs://mybucket/myblob`
+
+*Download a series of files described in a file*
+`gcsfast -l DEBUG download2 files.txt`
+
+*Upload from stdin with a fixed slice size*
+`gcsfast -l DEBUG stream_upload gs://mybucket/mystream`
+
+*Upload from file/FIFO with a fixed slice size*
+`gcsfast -l DEBUG stream_upload gs://mybucket/mystream myfile`
