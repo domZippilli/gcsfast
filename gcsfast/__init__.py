@@ -186,6 +186,14 @@ def download2(context: object, processes: int, threads: int, io_buffer: int,
 @main.command()
 @click.pass_context
 @click.option(
+    "-n",
+    "--no-compose",
+    required=False,
+    help=
+    "Do not compose the slices.",
+    default=False,
+    type=bool)
+@click.option(
     "-t",
     "--threads",
     required=False,
@@ -204,7 +212,7 @@ def download2(context: object, processes: int, threads: int, io_buffer: int,
     type=int)
 @click.argument('object_path')
 @click.argument('file_path', type=click.Path(), required=False)
-def stream_upload(context: object, threads: int, slice_size: int, object_path: str, file_path: str) -> None:
+def stream_upload(context: object, no_compose: bool, threads: int, slice_size: int, object_path: str, file_path: str) -> None:
     """
     Stream data of an arbitrary length into an object in GCS. 
     
@@ -218,7 +226,7 @@ def stream_upload(context: object, threads: int, slice_size: int, object_path: s
     FILE_PATH is the optional path for a file-like object.
     """
     init(**context.obj)
-    return stream_upload_command(threads, slice_size, object_path, file_path)
+    return stream_upload_command(no_compose, threads, slice_size, object_path, file_path)
 
 
 if __name__ == "__main__":

@@ -27,7 +27,7 @@ from gcsfast.thread import BoundedThreadPoolExecutor
 LOG = getLogger(__name__)
 
 
-def stream_upload_command(threads: int, slice_size: int, object_path: str,
+def stream_upload_command(no_compose: bool, threads: int, slice_size: int, object_path: str,
                           file_path: str) -> None:
     gcs = storage.Client()
 
@@ -65,20 +65,21 @@ def stream_upload_command(threads: int, slice_size: int, object_path: str,
 
     transfer_time = time() - start_time
 
-    LOG.info("Composing")
-    final_blob = storage.Blob.from_string(object_path)
-    final_blob.upload_from_file(io.BytesIO(b''), client=gcs)
+    if not no_compose:
+        LOG.info("Composing")
+        final_blob = storage.Blob.from_string(object_path)
+        final_blob.upload_from_file(io.BytesIO(b''), client=gcs)
 
-    for composition in composition_steps(slices):
-        composition.insert(0, final_blob)
-        LOG.debug("Composing: {}".format([blob.name for blob in composition]))
-        final_blob.compose(composition, client=gcs)
-        sleep(1) # can only modify object once per second
+        for composition in composition_steps(slices):
+            composition.insert(0, final_blob)
+            LOG.debug("Composing: {}".format([blob.name for blob in composition]))
+            final_blob.compose(composition, client=gcs)
+            sleep(1) # can only modify object once per second
 
-    LOG.info("Cleanup")
-    for blob in slices:
-        executor.submit(blob.delete, client=gcs)
-        sleep(.005) # quick and dirty rate-limiting, sorry Dijkstra
+        LOG.info("Cleanup")
+        for blob in slices:
+            executor.submit(blob.delete, client=gcs)
+            sleep(.005) # quick and dirty rate-limiting, sorry Dijkstra
 
     LOG.info("Done")
     LOG.info("Overall seconds elapsed: {}".format(time() - start_time))
