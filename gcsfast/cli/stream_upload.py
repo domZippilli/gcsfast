@@ -137,12 +137,15 @@ def read_exactly(input_stream: io.BufferedReader, length: int) -> bytes:
     """
     accumulator = b''
     bytes_read = 0
+    read_ops = 0
     while bytes_read < length:
         read_bytes = input_stream.read1(length - bytes_read)
+        read_ops += 1
         bytes_read += len(read_bytes)
         accumulator += read_bytes
         if not len(read_bytes):
             break
+    LOG.debug("Read exactly {} bytes in {} operations.".format(bytes_read, read_ops))
     return accumulator
 
 
