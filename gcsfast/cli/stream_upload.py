@@ -117,6 +117,7 @@ def compose(object_path: str, slices: List[storage.Blob],
 
     LOG.info("Cleanup")
     for blob in slices:
+        LOG.debug("Deleting {}".format(blob.name))
         executor.submit(blob.delete, client=client)
         sleep(.005)  # quick and dirty rate-limiting, sorry Dijkstra
 
