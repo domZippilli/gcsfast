@@ -44,8 +44,8 @@ def stream_upload_command(no_compose: bool, threads: int, slice_size: int,
     # start reading and uploading
     LOG.info("Reading input")
     start_time = time()
-    futures = generate_upload_slices(input_stream, object_path,
-                                     upload_slice_size, gcs, executor)
+    futures = push_upload_jobs(input_stream, object_path, upload_slice_size,
+                               gcs, executor)
 
     # wait for all uploads to finish and store the results
     slices = []
@@ -68,9 +68,10 @@ def stream_upload_command(no_compose: bool, threads: int, slice_size: int,
         b_to_mb(int(read_bytes / transfer_time)) * 8))
 
 
-def generate_upload_slices(input_stream: io.BufferedReader, object_path: str,
-                           slice_size: int, client: storage.Client,
-                           executor: Executor) -> Iterable[Future]:
+def push_upload_jobs(input_stream: io.BufferedReader, object_path: str,
+                     slice_size: int, client: storage.Client,
+                     executor: Executor) -> List[Future]:
+    futures = []
     read_bytes = 0
     slice_number = 0
     while not input_stream.closed:
@@ -83,11 +84,12 @@ def generate_upload_slices(input_stream: io.BufferedReader, object_path: str,
             slice_blob = executor.submit(
                 upload_bytes, slice_bytes,
                 object_path + "_slice{}".format(slice_number), client)
-            yield slice_blob
+            futures.append(slice_blob)
             slice_number += 1
         else:
             LOG.info("EOF: {} bytes".format(read_bytes))
             break
+    return futures
 
 
 def upload_bytes(bites: bytes, target: str,
