@@ -93,3 +93,18 @@ def memoize(func: Callable) -> Callable:
         return memos[call]
 
     return memoized
+
+
+def b_to_mb(byts: int, decimals: int = 1) -> float:
+    """Convert a count of bytes into a count of megabytes.
+    
+    Arguments:
+        byts {int} -- The count of bytes.
+    
+    Keyword Arguments:
+        decimals {int} -- The number of decimal points to include in the count of megabytes. (default: {1})
+    
+    Returns:
+        float -- The count of megabytes.
+    """
+    return round(byts / 1000 / 1000, decimals)
