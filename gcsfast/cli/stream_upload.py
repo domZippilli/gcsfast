@@ -38,7 +38,7 @@ def stream_upload_command(no_compose: bool, threads: int, slice_size: int,
         input_stream = open(file_path, "rb")
     upload_slice_size = slice_size
     executor = BoundedThreadPoolExecutor(max_workers=threads,
-                                         queue_size=threads * 2)
+                                         queue_size=int(threads * 1.5))
     gcs = storage.Client()
 
     # start reading and uploading
