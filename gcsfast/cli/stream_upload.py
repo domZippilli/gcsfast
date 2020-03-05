@@ -16,6 +16,7 @@ Implementation of "stream_upload" command.
 """
 import io
 from logging import getLogger
+from concurrent.futures import Executor, Future
 from time import time, sleep
 from typing import List, Iterable
 from sys import stdin
@@ -26,63 +27,39 @@ from gcsfast.thread import BoundedThreadPoolExecutor
 
 LOG = getLogger(__name__)
 
+stats = {}
 
-def stream_upload_command(no_compose: bool, threads: int, slice_size: int, object_path: str,
-                          file_path: str) -> None:
-    gcs = storage.Client()
 
+def stream_upload_command(no_compose: bool, threads: int, slice_size: int,
+                          object_path: str, file_path: str) -> None:
+    # intialize
     input_stream = stdin.buffer
     if file_path:
         input_stream = open(file_path, "rb")
-
     upload_slice_size = slice_size
+    executor = BoundedThreadPoolExecutor(max_workers=threads,
+                                         queue_size=threads * 2)
+    gcs = storage.Client()
 
-    executor = BoundedThreadPoolExecutor(max_workers=threads, queue_size=threads+2)
-
+    # start reading and uploading
     LOG.info("Reading input")
     start_time = time()
-    futures = []
-    read_bytes = 0
-    slice_number = 0
-    while not input_stream.closed:
-        slice_bytes = input_stream.read(upload_slice_size)
-        read_bytes += len(slice_bytes)  
-        if slice_bytes:
-            LOG.debug("Read slice {}, {} bytes".format(slice_number, read_bytes))
-            slice_blob = executor.submit(
-                upload_bytes, slice_bytes,
-                object_path + "_slice{}".format(slice_number), gcs)
-            futures.append(slice_blob)
-            slice_number += 1
-        else:
-            LOG.info("EOF: {} bytes".format(read_bytes))
-            break
+    futures = generate_upload_slices(input_stream, object_path,
+                                     upload_slice_size, gcs, executor)
 
-    LOG.info("Waiting for uploads to finish")
+    # wait for all uploads to finish and store the results
     slices = []
     for slyce in futures:
         slices.append(slyce.result())
-
     transfer_time = time() - start_time
 
+    # compose, if desired
     if not no_compose:
-        LOG.info("Composing")
-        final_blob = storage.Blob.from_string(object_path)
-        final_blob.upload_from_file(io.BytesIO(b''), client=gcs)
+        compose(object_path, slices, gcs, executor)
 
-        for composition in composition_steps(slices):
-            composition.insert(0, final_blob)
-            LOG.debug("Composing: {}".format([blob.name for blob in composition]))
-            final_blob.compose(composition, client=gcs)
-            sleep(1) # can only modify object once per second
-
-        LOG.info("Cleanup")
-        for blob in slices:
-            executor.submit(blob.delete, client=gcs)
-            sleep(.005) # quick and dirty rate-limiting, sorry Dijkstra
-
+    # cleanup and exit
     executor.shutdown(True)
-    
+    read_bytes = stats['read_bytes']
     LOG.info("Done")
     LOG.info("Overall seconds elapsed: {}".format(time() - start_time))
     LOG.info("Bytes read: {}".format(read_bytes))
@@ -91,17 +68,60 @@ def stream_upload_command(no_compose: bool, threads: int, slice_size: int, objec
         b_to_mb(int(read_bytes / transfer_time)) * 8))
 
 
+def generate_upload_slices(input_stream: io.BufferedReader, object_path: str,
+                           slice_size: int, client: storage.Client,
+                           executor: Executor) -> Iterable[Future]:
+    read_bytes = 0
+    slice_number = 0
+    while not input_stream.closed:
+        slice_bytes = input_stream.read(slice_size)
+        read_bytes += len(slice_bytes)
+        stats['read_bytes'] = read_bytes
+        if slice_bytes:
+            LOG.debug("Read slice {}, {} bytes".format(slice_number,
+                                                       read_bytes))
+            slice_blob = executor.submit(
+                upload_bytes, slice_bytes,
+                object_path + "_slice{}".format(slice_number), client)
+            yield slice_blob
+            slice_number += 1
+        else:
+            LOG.info("EOF: {} bytes".format(read_bytes))
+            break
+
+
 def upload_bytes(bites: bytes, target: str,
                  client: storage.Client = None) -> storage.Blob:
     client = client if client else storage.Client()
     slice_reader = io.BytesIO(bites)
     blob = storage.Blob.from_string(target)
+    LOG.debug("Starting upload of: {}".format(blob.name))
     blob.upload_from_file(slice_reader, client=client)
     LOG.info("Completed upload of: {}".format(blob.name))
     return blob
 
 
-def composition_steps(slices: List) -> Iterable[List]:
+def compose(object_path: str, slices: List[storage.Blob],
+            client: storage.Client, executor: Executor) -> storage.Blob:
+    LOG.info("Composing")
+    final_blob = storage.Blob.from_string(object_path)
+    final_blob.upload_from_file(io.BytesIO(b''), client=client)
+
+    for composition in generate_composition_steps(slices):
+        composition.insert(0, final_blob)
+        LOG.debug("Composing: {}".format([blob.name for blob in composition]))
+        final_blob.compose(composition, client=client)
+        sleep(1)  # can only modify object once per second
+
+    LOG.info("Cleanup")
+    for blob in slices:
+        executor.submit(blob.delete, client=client)
+        sleep(.005)  # quick and dirty rate-limiting, sorry Dijkstra
+
+    return final_blob
+
+
+def generate_composition_steps(slices: List) -> Iterable[List]:
     while len(slices):
         chunk = slices[:31]
         yield chunk
