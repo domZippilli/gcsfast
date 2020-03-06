@@ -28,6 +28,8 @@ from google.cloud import storage
 
 from gcsfast.constants import (DEFAULT_MAXIMUM_DOWNLOAD_SLICE_SIZE,
                                DEFAULT_MINIMUM_DOWNLOAD_SLICE_SIZE)
+from gcsfast.libraries.gcs import get_gcs_client, get_bucket, get_blob, tokenize_gcs_url
+from gcsfast.libraries.utils import b_to_mb
 
 # TODO move these to a dict or a class
 io.DEFAULT_BUFFER_SIZE = 131072
@@ -84,7 +86,7 @@ def download_command(processes: int, threads: int, io_buffer: int,
     LOG.debug("Threads per worker: %i", THREAD_COUNT[0])
 
     # Get the object metadata
-    gcs = get_client()
+    gcs = get_gcs_client()
     bucket = get_bucket(gcs, url_tokens)
     blob = get_blob(bucket, url_tokens)
     LOG.info("Blob size\t\t: {} ({} MB)".format(blob.size, b_to_mb(blob.size)))
@@ -100,7 +102,8 @@ def download_command(processes: int, threads: int, io_buffer: int,
 
     # Fan out the slice jobs
     with ProcessPoolExecutor(max_workers=workers) as executor:
-        LOG.info("Beginning download of %s to %s...", object_path, url_tokens["filename"])
+        LOG.info("Beginning download of %s to %s...", object_path,
+                 url_tokens["filename"])
         start_time = time()
         if all(executor.map(run_download_job, jobs)):
             elapsed = time() - start_time
@@ -112,12 +115,10 @@ def download_command(processes: int, threads: int, io_buffer: int,
             print("Something went wrong! Download again.")
             exit(1)
 
-    # TODO: Final checksum
-
 
 def run_download_job(job: DownloadJob) -> bool:
     # Get client and blob for this process.
-    gcs = get_client()
+    gcs = get_gcs_client()
     url_tokens = job["url_tokens"]
     bucket = get_bucket(gcs, url_tokens)
     blob = get_blob(bucket, url_tokens)
@@ -204,48 +205,3 @@ def calculate_slice_size(blob_size: int, jobs: int, min_override: int,
         return max_slice_size
     LOG.info("Blob can be sliced evenly among workers.")
     return evenly_among_workers
-
-
-def tokenize_gcs_url(url: str) -> Dict[str, str]:
-    try:
-        protocol, remaining = url.split("://")
-        bucket, path = remaining.split("/", 1)
-        filename = path.split("/")[-1]
-        return {
-            "protocol": protocol,
-            "bucket": bucket,
-            "path": path,
-            "filename": filename
-        }
-    except Exception as e:
-        LOG.error("Can't parse GCS URL: {}".format(url))
-        exit(1)
-
-
-def get_client() -> storage.Client:
-    try:
-        return storage.Client()
-    except Exception as e:
-        LOG.error("Error creating client: \n\t{}".format(e))
-        exit(1)
-
-
-def get_bucket(gcs: storage.Client, url_tokens: str) -> storage.Bucket:
-    try:
-        return gcs.get_bucket(url_tokens["bucket"])
-    except Exception as e:
-        LOG.error("Error accessing bucket: {}\n\t{}".format(
-            url_tokens["bucket"], e))
-        exit(1)
-
-
-def get_blob(bucket: storage.Bucket, url_tokens: str) -> storage.Blob:
-    try:
-        return bucket.get_blob(url_tokens["path"])
-    except Exception as e:
-        LOG.error("Error accessing object: {}\n\t{}".format(
-            url_tokens["path"], e))
-
-
-def b_to_mb(byts: int):
-    return round(byts / 1000 / 1000, 1)

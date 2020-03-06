@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Implementation of "stream_upload" command.
+Implementation of "upload_stream" command.
 """
 import io
 from concurrent.futures import Executor, Future
@@ -23,15 +23,16 @@ from typing import Iterable, List
 
 from google.cloud import storage
 
-from gcsfast.thread import BoundedThreadPoolExecutor
-from gcsfast.utils import b_to_mb
+from gcsfast.libraries.gcs import get_gcs_client
+from gcsfast.libraries.thread import BoundedThreadPoolExecutor
+from gcsfast.libraries.utils import b_to_mb
 
 LOG = getLogger(__name__)
 
 stats = {}
 
 
-def stream_upload_command(no_compose: bool, threads: int, slice_size: int,
+def upload_stream_command(no_compose: bool, threads: int, slice_size: int, io_buffer: int,
                           object_path: str, file_path: str) -> None:
     """Upload a stream into GCS using concurrent uploads. This is useful for 
     inputs which can be read faster than a single TCP stream. Also, uploads
@@ -44,18 +45,20 @@ def stream_upload_command(no_compose: bool, threads: int, slice_size: int,
         threads {int} -- The number of upload threads to use. The maximum amount of the 
           stream that may be in memory is slice_size * threads * 2.5.
         slice_size {int} -- The slice size for each upload.
+        slice_size {int} -- The IO buffer size to use for file operations.
         object_path {str} -- The object path for the upload, or the prefix to use if 
           composition is disabled.
         file_path {str} -- (Optional) a file or file-like object to read. Defaults to stdin.
     """
     # intialize
+    io.DEFAULT_BUFFER_SIZE = io_buffer
     input_stream = stdin.buffer
     if file_path:
         input_stream = open(file_path, "rb")
     upload_slice_size = slice_size
     executor = BoundedThreadPoolExecutor(max_workers=threads,
                                          queue_size=int(threads * 1.5))
-    gcs = storage.Client()
+    gcs = get_gcs_client()
 
     # start reading and uploading
     LOG.info("Reading input")
@@ -159,12 +162,12 @@ def upload_bytes(bites: bytes, target: str,
     
     Keyword Arguments:
         client {storage.Client} -- A client to use for the upload. If not provided,
-          google.cloud.storage.Client() will be called. (default: {None})
+          google.cloud.get_gcs_client() will be called. (default: {None})
     
     Returns:
         storage.Blob -- The uploaded blob.
     """
-    client = client if client else storage.Client()
+    client = client if client else get_gcs_client()
     slice_reader = io.BytesIO(bites)
     blob = storage.Blob.from_string(target)
     LOG.debug("Starting upload of: {}".format(blob.name))

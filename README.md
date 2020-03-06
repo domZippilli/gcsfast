@@ -21,8 +21,8 @@ Options:
 
 Commands:
   download       Download a GCS object as fast as possible.
-  download2      Download a stream of GCS objects as fast as possible.
-  stream-upload  Stream data of an arbitrary length into an object in GCS.
+  download-many  Download a stream of GCS objects as fast as possible.
+  upload-stream  Stream data of an arbitrary length into an object in GCS.
 ```
 
 See `--help` on each command for more info.
@@ -35,12 +35,12 @@ See `--help` on each command for more info.
 
 *Download a series of objects described in a file*
 
-`gcsfast -l DEBUG download2 files.txt`
+`gcsfast -l DEBUG download-many files.txt`
 
 *Upload from stdin with a fixed slice size*
 
-`gcsfast -l DEBUG stream_upload gs://mybucket/mystream`
+`gcsfast -l DEBUG upload-stream gs://mybucket/mystream`
 
 *Upload from file/FIFO with a fixed slice size*
 
-`gcsfast -l DEBUG stream_upload gs://mybucket/mystream myfile`
+`gcsfast -l DEBUG upload-stream gs://mybucket/mystream myfile`

@@ -22,9 +22,9 @@ import click
 from multiprocessing import cpu_count
 
 from gcsfast.cli.download import download_command
-from gcsfast.cli.download2 import download2_command
-from gcsfast.cli.stream_upload import stream_upload_command
-from gcsfast.utils import set_program_log_level
+from gcsfast.cli.download_many import download_many_command
+from gcsfast.cli.upload_stream import upload_stream_command
+from gcsfast.libraries.utils import set_program_log_level
 
 warnings.filterwarnings(
     "ignore", "Your application has authenticated using end user credentials")
@@ -82,7 +82,7 @@ def init(log_level: str = None) -> None:
     required=False,
     help=
     "Set io.DEFAULT_BUFFER_SIZE, which determines the size of writes to disk, in bytes. Default is 128KB.",
-    default=None,
+    default=128 * 2**10,
     type=int)
 @click.option(
     "-n",
@@ -160,7 +160,7 @@ if __name__ == "__main__":
     required=False,
     help=
     "Set io.DEFAULT_BUFFER_SIZE, which determines the size of writes to disk, in bytes. Default is 128KB.",
-    default=None,
+    default=128 * 2**10,
     type=int)
 @click.option(
     "-c",
@@ -172,15 +172,23 @@ if __name__ == "__main__":
     default=None,
     type=int)
 @click.argument('input_lines')
-def download2(context: object, processes: int, threads: int, io_buffer: int,
+def download_many(context: object, processes: int, threads: int, io_buffer: int,
              transfer_chunk: int, input_lines: str) -> None:
     """
-    Download a stream of GCS objects as fast as possible.
+    Download a stream of GCS object URLs as fast as possible.
+
+    The incoming stream should be line delimited full GCS object URLs, like this:
+
+      gs://bucket/object1
+      gs://bucket/object2
+
+    The objects will be placed in $PWD according to their "filename," that is the last string when the URL is
+    split by forward slashes (i.e., gs://bucket/folder/object -> ./object).
 
     OBJECT_PATH is a file or stdin (-) from which to read full GCS object URLs, line delimited.
     """
     init(**context.obj)
-    return download2_command(processes, threads, io_buffer, transfer_chunk, input_lines)
+    return download_many_command(processes, threads, io_buffer, transfer_chunk, input_lines)
 
 
 @main.command()
@@ -211,9 +219,17 @@ def download2(context: object, processes: int, threads: int, io_buffer: int,
     "Default is 16MB.",
     default=16 * 2**20,
     type=int)
+@click.option(
+    "-i",
+    "--io_buffer",
+    required=False,
+    help=
+    "Set io.DEFAULT_BUFFER_SIZE, which determines the size of reads from disk, in bytes. Default is 128KB.",
+    default=128 * 2**10,
+    type=int)
 @click.argument('object_path')
 @click.argument('file_path', type=click.Path(), required=False)
-def stream_upload(context: object, no_compose: bool, threads: int, slice_size: int, object_path: str, file_path: str) -> None:
+def upload_stream(context: object, no_compose: bool, threads: int, slice_size: int, io_buffer: int, object_path: str, file_path: str) -> None:
     """
     Stream data of an arbitrary length into an object in GCS. 
     
@@ -227,7 +243,7 @@ def stream_upload(context: object, no_compose: bool, threads: int, slice_size: i
     FILE_PATH is the optional path for a file-like object.
     """
     init(**context.obj)
-    return stream_upload_command(no_compose, threads, slice_size, object_path, file_path)
+    return upload_stream_command(no_compose, threads, slice_size, io_buffer, object_path, file_path)
 
 
 if __name__ == "__main__":
