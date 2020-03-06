@@ -33,10 +33,9 @@ from gcsfast.libraries.gcs import get_gcs_client, get_bucket, get_blob, tokenize
 from gcsfast.libraries.utils import b_to_mb
 
 # TODO move tunables to a dict or a class
-io.DEFAULT_BUFFER_SIZE = 131072
-PROCESS_COUNT = [cpu_count()]
-THREAD_COUNT = [1]
-TRANSFER_CHUNK_SIZE = [262144 * 4 * 16]
+PROCESS_COUNT = []
+THREAD_COUNT = []
+TRANSFER_CHUNK_SIZE = []
 LOG = getLogger(__name__)
 
 
@@ -60,16 +59,12 @@ class DownloadJob(dict):
 
 
 def download_many_command(processes: int, threads: int, io_buffer: int,
-                      transfer_chunk: int, input_lines: str) -> None:
+                          transfer_chunk: int, input_lines: str) -> None:
     # Set global tunables
-    if io_buffer:
-        io.DEFAULT_BUFFER_SIZE = io_buffer
-    if transfer_chunk:
-        TRANSFER_CHUNK_SIZE[0] = transfer_chunk
-    if processes:
-        PROCESS_COUNT[0] = processes
-    if threads:
-        THREAD_COUNT[0] = threads
+    io.DEFAULT_BUFFER_SIZE = io_buffer
+    TRANSFER_CHUNK_SIZE[0] = transfer_chunk
+    PROCESS_COUNT[0] = processes
+    THREAD_COUNT[0] = threads
 
     # Generate lines
     lines = None

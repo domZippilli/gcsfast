@@ -65,23 +65,23 @@ def init(log_level: str = None) -> None:
     required=False,
     help=
     "Set number of processes for simultaneous downloads. Default is multiprocessing.cpu_count().",
-    default=None,
+    default=cpu_count(),
     type=int)
 @click.option(
     "-t",
     "--threads",
     required=False,
     help=
-    "Set number of threads (per process) for simultaneous downloads. Default is 1."
+    "Set number of threads (per process) for simultaneous downloads. Default is 4."
     " Default slice limits will be multiplied by this value (as slices are subdivided into threads).",
-    default=None,
+    default=4,
     type=int)
 @click.option(
     "-i",
     "--io_buffer",
     required=False,
     help=
-    "Set io.DEFAULT_BUFFER_SIZE, which determines the size of writes to disk, in bytes. Default is 128KB.",
+    "Set io.DEFAULT_BUFFER_SIZE, which determines the size of writes to disk, in bytes. Default is 128KiB.",
     default=128 * 2**10,
     type=int)
 @click.option(
@@ -89,14 +89,14 @@ def init(log_level: str = None) -> None:
     "--min_slice",
     required=False,
     help="Set the minimum slice size to use, in bytes. Default is 64MiB.",
-    default=None,
+    default=64 * 2**20,
     type=int)
 @click.option(
     "-m",
     "--max_slice",
     required=False,
     help="Set the maximum slice size to use, in bytes. Default is 1GiB.",
-    default=None,
+    default=2**30,
     type=int)
 @click.option(
     "-s",
@@ -113,7 +113,7 @@ def init(log_level: str = None) -> None:
     help=
     "Set the GCS transfer chunk size to use, in bytes. Must be a multiple of 262144. Default is 262144 * 4 * 16 (16MiB),"
     " which covers most cases quite well. Recommend setting this using shell evaluation, e.g. $((262144 * 4 * DESIRED_MB)).",
-    default=None,
+    default=262144 * 4 * 16,
     type=int)
 @click.argument('object_path')
 @click.argument('file_path', type=click.Path(), required=False)
@@ -152,7 +152,7 @@ if __name__ == "__main__":
     help=
     "Set number of threads (per process) for simultaneous downloads. Default is 1."
     " Default slice limits will be multiplied by this value (as slices are subdivided into threads).",
-    default=None,
+    default=1,
     type=int)
 @click.option(
     "-i",
@@ -169,7 +169,7 @@ if __name__ == "__main__":
     help=
     "Set the GCS transfer chunk size to use, in bytes. Must be a multiple of 262144. Default is 262144 * 4 * 16 (16MiB),"
     " which covers most cases quite well. Recommend setting this using shell evaluation, e.g. $((262144 * 4 * DESIRED_MB)).",
-    default=None,
+    default=262144 * 4 * 16,
     type=int)
 @click.argument('input_lines')
 def download_many(context: object, processes: int, threads: int, io_buffer: int,
