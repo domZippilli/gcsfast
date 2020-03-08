@@ -123,6 +123,9 @@ def download(context: object, processes: int, threads: int, io_buffer: int,
     """
     Download a GCS object as fast as possible.
 
+    Your operating system must support sparse files; numerous slices will be written into specific
+    byte offsets in the file at once, until they finally form a single contiguous file.
+
     OBJECT_PATH is the path to the object (use gs:// protocol).\n
     FILE_PATH is the filesystem path for the downloaded object.
     """
@@ -176,6 +179,9 @@ def download_many(context: object, processes: int, threads: int, io_buffer: int,
              transfer_chunk: int, input_lines: str) -> None:
     """
     Download a stream of GCS object URLs as fast as possible.
+    
+    Your operating system must support sparse files; numerous slices will be written into specific
+    byte offsets in the file at once, until they finally form a single contiguous file.
 
     The incoming stream should be line delimited full GCS object URLs, like this:
 
