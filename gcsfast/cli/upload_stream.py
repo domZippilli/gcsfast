@@ -92,7 +92,7 @@ def push_upload_jobs(input_stream: io.BufferedReader, object_path: str,
                      executor: Executor) -> List[Future]:
     """Given an input stream, perform a single-threaded, single-cursor read. This
     will be fanned out into multiple object slices, and optionally composed into
-    a single object given as `object_path`. If composition is disabled, `object_path`
+    a single object given as `object_path`. If composition is enabled, `object_path`
     will function as a prefix, to which the suffix `_sliceN` will be appended, where N is
     a monotonically increasing number starting with 1.
     
