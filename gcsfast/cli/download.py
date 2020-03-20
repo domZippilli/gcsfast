@@ -22,19 +22,17 @@ from logging import getLogger
 from multiprocessing import cpu_count
 from pprint import pprint
 from time import time
-from typing import Dict, List
+from typing import Dict, List, Iterable
 
 from google.cloud import storage
 
 from gcsfast.constants import (DEFAULT_MAXIMUM_DOWNLOAD_SLICE_SIZE,
                                DEFAULT_MINIMUM_DOWNLOAD_SLICE_SIZE)
-from gcsfast.libraries.gcs import get_gcs_client, get_bucket, get_blob, tokenize_gcs_url
+from gcsfast.libraries.gcs import (get_blob, get_bucket, get_gcs_client,
+                                   tokenize_gcs_url)
 from gcsfast.libraries.utils import b_to_mb
 
-# TODO move these to a dict or a class
-PROCESS_COUNT = []
-THREAD_COUNT = []
-TRANSFER_CHUNK_SIZE = []
+TUNING = {}
 LOG = getLogger(__name__)
 
 
@@ -61,11 +59,31 @@ def download_command(processes: int, threads: int, io_buffer: int,
                      min_slice: int, max_slice: int, slice_size: int,
                      transfer_chunk: int, object_path: str,
                      output_file: str) -> None:
+    """Downloads a single file by breaking up the work across both processes and threads. This
+    implementation is dependent on a filesystem that supports sparse files (which is most modern ones) as each
+    download job will seek to the start of its slice in the file and write there.
+    
+    Arguments:
+        processes {int} -- The number of processes to use.
+        threads {int} -- The number of threads to have within each process.
+          The chunks sent to processes are subdivided among threads.
+        io_buffer {int} -- Size of the IO buffer to use.
+        min_slice {int} -- Minimum download slice size.
+        max_slice {int} -- Maximum download slice size.
+        slice_size {int} -- Override slice size calculations and use this.
+        transfer_chunk {int} -- Size of HTTP chunk to transfer from GCS.
+        object_path {str} -- The path to the GCS object.
+        output_file {str} -- The path to the output file.
+    """
     # Set global tunables
     io.DEFAULT_BUFFER_SIZE = io_buffer
-    TRANSFER_CHUNK_SIZE[0] = transfer_chunk
-    PROCESS_COUNT[0] = processes
-    THREAD_COUNT[0] = threads
+    TUNING["TRANSFER_CHUNK_SIZE"] = transfer_chunk
+    TUNING["THREAD_COUNT"] = threads
+
+    # Get processes
+    workers = processes if processes else cpu_count()
+    LOG.debug("Worker process count: %i", workers)
+    LOG.debug("Threads per worker: %i", TUNING["THREAD_COUNT"])
 
     # Tokenize URL
     url_tokens = tokenize_gcs_url(object_path)
@@ -75,11 +93,6 @@ def download_command(processes: int, threads: int, io_buffer: int,
     if output_file:
         url_tokens["filename"] = output_file
 
-    # Get processes
-    workers = processes if processes else cpu_count()
-    LOG.debug("Worker process count: %i", workers)
-    LOG.debug("Threads per worker: %i", THREAD_COUNT[0])
-
     # Get the object metadata
     gcs = get_gcs_client()
     bucket = get_bucket(gcs, url_tokens)
@@ -88,12 +101,11 @@ def download_command(processes: int, threads: int, io_buffer: int,
 
     # Calculate the optimal slice size, within bounds
     slice_size = slice_size if slice_size else calculate_slice_size(
-        blob.size, workers, min_slice, max_slice, THREAD_COUNT[0])
+        blob.size, workers, min_slice, max_slice, TUNING["THREAD_COUNT"])
     LOG.info("Final slice size\t: {} MB".format(b_to_mb(slice_size)))
 
     # Form definitions of each download job
-    jobs = calculate_jobs(url_tokens, slice_size, blob.size)
-    LOG.info("Slice count: %i", len(jobs))
+    jobs = generate_jobs(url_tokens, slice_size, blob.size)
 
     # Fan out the slice jobs
     with ProcessPoolExecutor(max_workers=workers) as executor:
@@ -112,32 +124,39 @@ def download_command(processes: int, threads: int, io_buffer: int,
 
 
 def run_download_job(job: DownloadJob) -> bool:
+    """Run a download "job" as defined in a DownloadJob object.
+
+    The job's download range will be subdivided among threads. If the
+    thread argument is set to 1, this will have no effect.
+    
+    Arguments:
+        job {DownloadJob} -- A DownloadJob object describing the blob range to download
+          and a destination file.
+    
+    Returns:
+        bool -- True if all threads completed successfully.
+    """
     # Get client and blob for this process.
     gcs = get_gcs_client()
     url_tokens = job["url_tokens"]
     bucket = get_bucket(gcs, url_tokens)
     blob = get_blob(bucket, url_tokens)
     # Set blob transfer chunk size.
-    blob.chunk_size = TRANSFER_CHUNK_SIZE[0]
+    blob.chunk_size = TUNING["TRANSFER_CHUNK_SIZE"]
     # Retrieve remaining job details.
     start = job["start"]
     end = job["end"]
     output_filename = job["url_tokens"]["filename"]
 
-    def _download_range(start_and_end: tuple):
-        s, e = start_and_end
-        with open(output_filename, "wb") as output:
-            output.seek(s)
-            blob.download_to_file(output, start=s, end=e)
-        return True
-
     start_time = time()
-    with ThreadPoolExecutor(max_workers=THREAD_COUNT[0]) as executor:
-        ranges = subdivide_range(start, end, THREAD_COUNT[0])
+    with ThreadPoolExecutor(max_workers=TUNING["THREAD_COUNT"]) as executor:
+        ranges = list(subdivide_range(start, end, TUNING["THREAD_COUNT"]))
         LOG.debug("Slice #%i: divided into ranges (per thread): %s",
                   job["slice_number"], ranges)
-        # Perform download.
-        if not all(executor.map(_download_range, ranges)):
+        # Partial application to prepare for map.
+        downloader = lambda x: download_range(x, blob, output_filename)
+        # Perform downloads.
+        if not all(executor.map(downloader, ranges)):
             return False
     elapsed = time() - start_time
 
@@ -149,37 +168,93 @@ def run_download_job(job: DownloadJob) -> bool:
     return True
 
 
-def subdivide_range(range_start, range_end, subdivisions: int) -> List[tuple]:
+def download_range(start_and_end: tuple, blob: storage.Blob,
+                   output_filename: str) -> bool:
+    """Download a range of a blob into a file.
+    
+    Arguments:
+        start_and_end {tuple} -- The start and end of the range.
+        blob {storage.Blob} -- The blob to read from.
+        output_filename {str} -- The file to write to.
+    
+    Returns:
+        bool -- Success of the download.
+    """
+    s, e = start_and_end
+    with open(output_filename, "wb") as output:
+        output.seek(s)
+        blob.download_to_file(output, start=s, end=e)
+    return True
+
+
+def subdivide_range(range_start, range_end,
+                    subdivisions: int) -> Iterable[tuple]:
+    """Generate n exclusive subdivisions of a numerical range.
+    
+    Arguments:
+        range_start {[type]} -- The start of the range.
+        range_end {[type]} -- The end of the range.
+        subdivisions {int} -- The number of subdivisions.
+    
+    Returns:
+        Iterable[tuple] -- A sequence of tuples (start, finish) for each
+          subdivision.
+    """
     range_size = range_end - range_start
     subrange_size = int(range_size / subdivisions)  # truncate the float
-    ranges = []
     start = range_start
     finish = -1
     while finish < range_end:
         finish = start + subrange_size
-        ranges.append((start, min(finish, range_end)))
+        yield (start, min(finish, range_end))
         start = finish + 1
-    return ranges
 
 
-def calculate_jobs(url_tokens: Dict[str, str], slice_size: int,
-                   blob_size: int) -> List[DownloadJob]:
-    jobs = []
+def generate_jobs(url_tokens: Dict[str, str], slice_size: int,
+                  blob_size: int) -> Iterable[DownloadJob]:
+    """
+    Generate DownloadJobs necessary to completely download the blob using
+    the given slice size.
+
+    This function serves mainly to generate the specific byte ranges that each
+    job should target.
+    
+    Arguments:
+        url_tokens {Dict[str, str]} -- Tokenized GCS URL.
+        slice_size {int} -- The slice size to target. The final slice may be smaller.
+        blob_size {int} -- The size of the blob, in bytes.
+    
+    Returns:
+        Iterable[DownloadJob] -- A sequence of DownloadJob definitions that will get the
+          entire blob in slices.
+    """
     slice_number = 1
     start = 0
     finish = -1
     while finish < blob_size:
         finish = start + slice_size
-        jobs.append(
-            DownloadJob(url_tokens, start, min(finish, blob_size),
-                        slice_number))
+        yield DownloadJob(url_tokens, start, min(finish, blob_size),
+                          slice_number)
         slice_number += 1
         start = finish + 1
-    return jobs
 
 
 def calculate_slice_size(blob_size: int, jobs: int, min_override: int,
                          max_override: int, multiplier: int) -> int:
+    """Calculate the appropriate slice size for a given blob to be divided among 
+    some number of ranged download jobs.
+    
+    Arguments:
+        blob_size {int} -- The overall blob size.
+        jobs {int} -- The number of jobs to divide the blob into.
+        min_override {int} -- A user-provided override value for the minimum slice size.
+        max_override {int} -- A user-provided override value for the maximum slice size.
+        multiplier {int} -- A multiplier for the min/max values. Use this to shift the slice sizes
+          for job runners that will subdivide the slice across threads.
+    
+    Returns:
+        int -- The slice size to use for the given number of jobs.
+    """
     min_slice_size = min_override if min_override else DEFAULT_MINIMUM_DOWNLOAD_SLICE_SIZE * multiplier
     max_slice_size = max_override if max_override else DEFAULT_MAXIMUM_DOWNLOAD_SLICE_SIZE * multiplier
     LOG.info("Minimum slice size\t: {} MB".format(b_to_mb(min_slice_size)))
