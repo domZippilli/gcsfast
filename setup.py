@@ -44,7 +44,7 @@ setup(
     packages=['gcsfast'],  # TODO: more specific
     python_requires='>=3.5, <4',
     install_requires=[
-        'google-cloud-storage',
+        'google-cloud-storage==1.28.0',
         'click',
     ],
     entry_points={
