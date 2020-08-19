@@ -16,6 +16,7 @@ Implementation of "download" command.
 """
 import fileinput
 import io
+import pickle
 from concurrent.futures import (ProcessPoolExecutor, ThreadPoolExecutor,
                                 as_completed, wait)
 from logging import getLogger
@@ -23,74 +24,92 @@ from multiprocessing import cpu_count
 from pprint import pprint
 from sys import stdin
 from time import time
-from typing import Dict, List, Iterable
+from typing import Dict, Iterable, List, Tuple
 
 from google.cloud import storage
 
-from gcsfast.constants import (DEFAULT_MAXIMUM_DOWNLOAD_SLICE_SIZE,
-                               DEFAULT_MINIMUM_DOWNLOAD_SLICE_SIZE)
-from gcsfast.libraries.gcs import get_gcs_client, get_bucket, get_blob, tokenize_gcs_url
-from gcsfast.libraries.utils import b_to_mb
+from gcsfast.libraries.gcs import (DownloadJob, calculate_slice_size, get_blob,
+                                   get_bucket, get_gcs_client,
+                                   tokenize_gcs_url)
+from gcsfast.libraries.tunables import Tunables
+from gcsfast.libraries.utils import b_to_mb, mkdir_for_file, subdivide_range
 
-# TODO move tunables to a dict or a class
-PROCESS_COUNT = []
-THREAD_COUNT = []
-TRANSFER_CHUNK_SIZE = []
+io.DEFAULT_BUFFER_SIZE = 128 * 2**10
+TUNING = Tunables()
 LOG = getLogger(__name__)
 
 
-class DownloadJob(dict):
-    """Describes a download job. 
-    
-    Arguments:
-        dict {[type]} -- [description]
-    
-    Returns:
-        [type] -- [description]
-    """
-    def __init__(self, url_tokens, start, end, slice_number):
-        self["url_tokens"] = url_tokens
-        self["start"] = start
-        self["end"] = end
-        self["slice_number"] = slice_number
+def download_many_command(processes: int,
+                          threads: int,
+                          input_lines: str,
+                          input_list: List = None) -> None:
+    # Override tunables
+    if processes:
+        TUNING.process_count = processes
+    if threads:
+        TUNING.thread_count = threads
 
-    def __str__(self):
-        return super().__str__()
+    LOG.info("Tuning settings: %s", TUNING)
 
-
-def download_many_command(processes: int, threads: int, io_buffer: int,
-                          transfer_chunk: int, input_lines: str) -> None:
-    # Set global tunables
-    io.DEFAULT_BUFFER_SIZE = io_buffer
-    TRANSFER_CHUNK_SIZE[0] = transfer_chunk
-    PROCESS_COUNT[0] = processes
-    THREAD_COUNT[0] = threads
-
-    # Generate lines
+    # Get input lines
     lines = None
-    if input_lines == "-":
+    if input_list:
+        lines = input_list
+    elif input_lines == "-":
         lines = stdin.readlines()
     else:
         lines = open(input_lines, "r").readlines()
 
-    # Generate tokenized lines
+    LOG.debug('Download lines: %s', lines)
+
+    # Tokenize the lines
     tokenized = generate_tokenized_urls(lines)
 
     # Generate download jobs
     jobs = generate_download_jobs(tokenized)
 
     # Run jobs
-    with ProcessPoolExecutor(max_workers=PROCESS_COUNT[0]) as executor:
-        if all(executor.map(run_download_job, jobs)):
-            LOG.info("All done!")
-        else:
-            LOG.error("Something went wrong! Download again.")
+    try:
+        with ProcessPoolExecutor(max_workers=TUNING.process_count) as executor:
+            if all(executor.map(run_download_job, jobs)):
+                LOG.info("All done!")
+            else:
+                LOG.error("Something went wrong!")
+    except KeyboardInterrupt:
+        LOG.error("Ctrl-C caught, quitting.")
+        exit(1)
 
 
-def generate_download_jobs(tokenized_urls: Iterable[Dict[str, str]]
+def generate_tokenized_urls(lines: Iterable[str]) -> Iterable[Dict[str, str]]:
+    for line in lines:
+        line = line.strip()
+        if line:
+            source_part, dest_part = line.split(",")
+            tokens = tokenize_gcs_url(source_part)
+            # Default destination filepath to the object name
+            dest_part = dest_part if dest_part else tokens["path"]
+            LOG.debug("Yielding tokenized line: %s", (tokens, dest_part))
+            yield (tokens, dest_part)
+
+
+def generate_download_jobs(input_iter: Iterable[Tuple[Dict[str, str], str]]
                            ) -> Iterable[DownloadJob]:
-    for url_tokens in tokenized_urls:
+    """
+    Generate DownloadJobs necessary to completely download the blobs.
+
+    This function serves mainly to generate the specific byte ranges that each
+    job should target.
+    
+    Arguments:
+        input_iter {(Dict[str, str], str)} -- (Tokenized GCS URL, destination path).
+    
+    Returns:
+        Iterable[DownloadJob] -- A sequence of DownloadJob definitions that will get the
+          entire blob in slices.
+    """
+    for url_tokens, output_file in input_iter:
         # Get the object metadata
+        LOG.debug("Getting object metadata: %s", url_tokens)
         gcs = get_gcs_client()
         bucket = get_bucket(gcs, url_tokens)
         blob = get_blob(bucket, url_tokens)
@@ -98,51 +117,24 @@ def generate_download_jobs(tokenized_urls: Iterable[Dict[str, str]]
                  b_to_mb(blob.size))
 
         # Calculate the optimal slice size, within bounds
-        slice_size = calculate_slice_size(blob.size, PROCESS_COUNT[0],
-                                          THREAD_COUNT[0])
+        slice_size = calculate_slice_size(blob.size, TUNING)
         LOG.info("%s final slice size\t: %s MB", url_tokens["url"],
                  b_to_mb(slice_size))
 
         # Form definitions of each download job
-        jobs = calculate_jobs(url_tokens, slice_size, blob.size)
+        jobs = define_jobs_to_get_file(url_tokens, output_file, slice_size,
+                                       blob.size)
         LOG.info("%s slice count: %i", url_tokens["url"], len(jobs))
 
         for job in jobs:
             yield job
+            LOG.debug("Yielded process-level job: %s", job)
+    LOG.info("All jobs generated.")
 
 
-def generate_tokenized_urls(lines: Iterable[str]) -> Iterable[Dict[str, str]]:
-    for line in lines:
-        line = line.strip()
-        if line:
-            yield tokenize_gcs_url(line)
-
-
-def calculate_slice_size(blob_size: int, jobs: int, multiplier: int) -> int:
-    min_slice_size = DEFAULT_MINIMUM_DOWNLOAD_SLICE_SIZE * multiplier
-    max_slice_size = DEFAULT_MAXIMUM_DOWNLOAD_SLICE_SIZE * multiplier
-    LOG.info("Minimum slice size\t: {} MB".format(b_to_mb(min_slice_size)))
-    LOG.info("Maximum slice size\t: {} MB".format(b_to_mb(max_slice_size)))
-    if blob_size < min_slice_size:
-        LOG.info("Blob smaller than minimum slice size; cannot slice.")
-        return blob_size
-    evenly_among_workers = int(blob_size / jobs)
-    if evenly_among_workers < min_slice_size:
-        LOG.info(
-            "Blob will be sliced into minimum slice sizes; there will be fewer slices than workers. You may want to specify a smaller (minimum) slice size."
-        )
-        return min_slice_size
-    if evenly_among_workers > max_slice_size:
-        LOG.info(
-            "Blob will be sliced into maximum slice sizes; there will be more slices than workers (this is OK as long as workers optimize throughput)."
-        )
-        return max_slice_size
-    LOG.info("Blob can be sliced evenly among workers.")
-    return evenly_among_workers
-
-
-def calculate_jobs(url_tokens: Dict[str, str], slice_size: int,
-                   blob_size: int) -> List[DownloadJob]:
+def define_jobs_to_get_file(url_tokens: Dict[str, str], output_file: str,
+                            slice_size: int,
+                            blob_size: int) -> List[DownloadJob]:
     jobs = []
     slice_number = 1
     start = 0
@@ -151,35 +143,45 @@ def calculate_jobs(url_tokens: Dict[str, str], slice_size: int,
         finish = start + slice_size
         jobs.append(
             DownloadJob(url_tokens, start, min(finish, blob_size),
-                        slice_number))
+                        slice_number, output_file))
         slice_number += 1
         start = finish + 1
     return jobs
 
 
 def run_download_job(job: DownloadJob) -> bool:
+    LOG.info("Slice #%i starting", job["slice_number"])
+
     # Get client and blob for this process.
     gcs = get_gcs_client()
-    url_tokens = job["url_tokens"]
+    url_tokens = job.url_tokens
     bucket = get_bucket(gcs, url_tokens)
     blob = get_blob(bucket, url_tokens)
-    # Set blob transfer chunk size.
-    blob.chunk_size = TRANSFER_CHUNK_SIZE[0]
-    # Retrieve remaining job details.
-    start = job["start"]
-    end = job["end"]
-    output_filename = job["url_tokens"]["filename"]
 
+    # Set blob transfer chunk size.
+    blob.chunk_size = TUNING.transfer_chunk_size
+
+    # Retrieve remaining job details.
+    start = job.start
+    end = job.end
+
+    # set the output file and idempotently mkdir
+    output_filename = job.output_file
+    mkdir_for_file(output_filename)
+
+    # Inner function with references to blob above, for thread pooling
     def _download_range(start_and_end: tuple):
+        LOG.debug("Starting download job for bytes %s", start_and_end)
         s, e = start_and_end
         with open(output_filename, "wb") as output:
             output.seek(s)
             blob.download_to_file(output, start=s, end=e)
         return True
 
+    # Sub-slice the download over all the local threads.
     start_time = time()
-    with ThreadPoolExecutor(max_workers=THREAD_COUNT[0]) as executor:
-        ranges = subdivide_range(start, end, THREAD_COUNT[0])
+    with ThreadPoolExecutor(max_workers=TUNING.thread_count) as executor:
+        ranges = subdivide_range(start, end, TUNING.thread_count)
         LOG.debug("Slice #%i: divided into ranges (per thread): %s",
                   job["slice_number"], ranges)
         # Perform download.
@@ -193,16 +195,3 @@ def run_download_job(job: DownloadJob) -> bool:
              job["slice_number"], elapsed, b_to_mb(bytes_downloaded),
              int((bytes_downloaded / elapsed) * 8 / 1000 / 1000))
     return True
-
-
-def subdivide_range(range_start, range_end, subdivisions: int) -> List[tuple]:
-    range_size = range_end - range_start
-    subrange_size = int(range_size / subdivisions)  # truncate the float
-    ranges = []
-    start = range_start
-    finish = -1
-    while finish < range_end:
-        finish = start + subrange_size
-        ranges.append((start, min(finish, range_end)))
-        start = finish + 1
-    return ranges

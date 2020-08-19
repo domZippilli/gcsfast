@@ -14,13 +14,16 @@
 """
 Utility functions not specific to any submodule.
 """
-
+import errno
 import logging
+import os
 from configparser import ConfigParser
 from functools import wraps
-from typing import Callable
+from typing import Callable, List
 
 from gcsfast.constants import PROGRAM_ROOT_LOGGER_NAME
+
+LOG = logging.getLogger(__name__)
 
 
 def validate_log_level(level: str) -> bool:
@@ -69,6 +72,7 @@ def set_program_log_level(command_line_arg,
     print("Log level is {}, set by {}".format(level, set_by))
 
 
+## TODO: There's a functools built-in for this
 def memoize(func: Callable) -> Callable:
     """Decorator to memoize a function.
 
@@ -108,3 +112,42 @@ def b_to_mb(byts: int, decimals: int = 1) -> float:
         float -- The count of megabytes.
     """
     return round(byts / 1000 / 1000, decimals)
+
+
+def mkdir_for_file(filename):
+    return mkdir(filename.rpartition("/")[0])
+
+
+def mkdir(dirname):
+    try:
+        LOG.debug("Creating directory: %s", dirname)
+        os.mkdir(dirname)
+    except OSError as exc:
+        if exc.errno != errno.EEXIST:
+            LOG.exception("Error creating directory: ", dirname)
+            raise
+        LOG.debug("Directory already exists: %s", dirname)
+
+
+def subdivide_range(range_start, range_end, subdivisions: int) -> List[tuple]:
+    """Generate n exclusive subdivisions of a numerical range.
+    
+    Arguments:
+        range_start {[type]} -- The start of the range.
+        range_end {[type]} -- The end of the range.
+        subdivisions {int} -- The number of subdivisions.
+    
+    Returns:
+        Iterable[tuple] -- A sequence of tuples (start, finish) for each
+          subdivision.
+    """
+    range_size = range_end - range_start
+    subrange_size = int(range_size / subdivisions)  # truncate the float
+    ranges = []
+    start = range_start
+    finish = -1
+    while finish < range_end:
+        finish = start + subrange_size
+        ranges.append((start, min(finish, range_end)))
+        start = finish + 1
+    return ranges

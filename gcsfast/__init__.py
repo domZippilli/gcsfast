@@ -65,7 +65,6 @@ def init(log_level: str = None) -> None:
     required=False,
     help=
     "Set number of processes for simultaneous downloads. Default is multiprocessing.cpu_count().",
-    default=cpu_count(),
     type=int)
 @click.option(
     "-t",
@@ -74,52 +73,11 @@ def init(log_level: str = None) -> None:
     help=
     "Set number of threads (per process) for simultaneous downloads. Default is 4."
     " Default slice limits will be multiplied by this value (as slices are subdivided into threads).",
-    default=4,
-    type=int)
-@click.option(
-    "-i",
-    "--io_buffer",
-    required=False,
-    help=
-    "Set io.DEFAULT_BUFFER_SIZE, which determines the size of writes to disk, in bytes. Default is 128KiB.",
-    default=128 * 2**10,
-    type=int)
-@click.option(
-    "-n",
-    "--min_slice",
-    required=False,
-    help="Set the minimum slice size to use, in bytes. Default is 64MiB.",
-    default=64 * 2**20,
-    type=int)
-@click.option(
-    "-m",
-    "--max_slice",
-    required=False,
-    help="Set the maximum slice size to use, in bytes. Default is 1GiB.",
-    default=2**30,
-    type=int)
-@click.option(
-    "-s",
-    "--slice_size",
-    required=False,
-    help=
-    "Set the slice size to use, in bytes. Use this to override the slice calculation with your own value.",
-    default=None,
-    type=int)
-@click.option(
-    "-c",
-    "--transfer_chunk",
-    required=False,
-    help=
-    "Set the GCS transfer chunk size to use, in bytes. Must be a multiple of 262144. Default is 262144 * 4 * 16 (16MiB),"
-    " which covers most cases quite well. Recommend setting this using shell evaluation, e.g. $((262144 * 4 * DESIRED_MB)).",
-    default=262144 * 4 * 16,
     type=int)
 @click.argument('object_path')
 @click.argument('file_path', type=click.Path(), required=False)
-def download(context: object, processes: int, threads: int, io_buffer: int,
-             min_slice: int, max_slice: int, slice_size: int,
-             transfer_chunk: int, object_path: str, file_path: str) -> None:
+def download(context: object, processes: int, threads: int, object_path: str,
+             file_path: str) -> None:
     """
     Download a GCS object as fast as possible.
 
@@ -130,13 +88,12 @@ def download(context: object, processes: int, threads: int, io_buffer: int,
     FILE_PATH is the filesystem path for the downloaded object.
     """
     init(**context.obj)
-    return download_command(processes, threads, io_buffer, min_slice,
-                            max_slice, slice_size, transfer_chunk, object_path,
-                            file_path)
+    return download_command(processes, threads, object_path, file_path)
 
 
 if __name__ == "__main__":
     main()
+
 
 @main.command()
 @click.pass_context
@@ -146,37 +103,18 @@ if __name__ == "__main__":
     required=False,
     help=
     "Set number of processes for simultaneous downloads. Default is multiprocessing.cpu_count().",
-    default=cpu_count(),
     type=int)
 @click.option(
     "-t",
     "--threads",
     required=False,
     help=
-    "Set number of threads (per process) for simultaneous downloads. Default is 1."
+    "Set number of threads (per process) for simultaneous downloads. Default is 4."
     " Default slice limits will be multiplied by this value (as slices are subdivided into threads).",
-    default=1,
-    type=int)
-@click.option(
-    "-i",
-    "--io_buffer",
-    required=False,
-    help=
-    "Set io.DEFAULT_BUFFER_SIZE, which determines the size of writes to disk, in bytes. Default is 128KB.",
-    default=128 * 2**10,
-    type=int)
-@click.option(
-    "-c",
-    "--transfer_chunk",
-    required=False,
-    help=
-    "Set the GCS transfer chunk size to use, in bytes. Must be a multiple of 262144. Default is 262144 * 4 * 16 (16MiB),"
-    " which covers most cases quite well. Recommend setting this using shell evaluation, e.g. $((262144 * 4 * DESIRED_MB)).",
-    default=262144 * 4 * 16,
     type=int)
 @click.argument('input_lines')
-def download_many(context: object, processes: int, threads: int, io_buffer: int,
-             transfer_chunk: int, input_lines: str) -> None:
+def download_many(context: object, processes: int, threads: int,
+                  input_lines: str) -> None:
     """
     Download a stream of GCS object URLs as fast as possible.
     
@@ -194,20 +132,18 @@ def download_many(context: object, processes: int, threads: int, io_buffer: int,
     OBJECT_PATH is a file or stdin (-) from which to read full GCS object URLs, line delimited.
     """
     init(**context.obj)
-    return download_many_command(processes, threads, io_buffer, transfer_chunk, input_lines)
+    return download_many_command(processes, threads, input_lines)
 
 
 @main.command()
 @click.pass_context
-@click.option(
-    "-n",
-    "--no-compose",
-    required=False,
-    help=
-    "Do not compose the slices.",
-    default=False,
-    type=bool,
-    is_flag=True)
+@click.option("-n",
+              "--no-compose",
+              required=False,
+              help="Do not compose the slices.",
+              default=False,
+              type=bool,
+              is_flag=True)
 @click.option(
     "-t",
     "--threads",
@@ -235,7 +171,9 @@ def download_many(context: object, processes: int, threads: int, io_buffer: int,
     type=int)
 @click.argument('object_path')
 @click.argument('file_path', type=click.Path(), required=False)
-def upload_stream(context: object, no_compose: bool, threads: int, slice_size: int, io_buffer: int, object_path: str, file_path: str) -> None:
+def upload_stream(context: object, no_compose: bool, threads: int,
+                  slice_size: int, io_buffer: int, object_path: str,
+                  file_path: str) -> None:
     """
     Stream data of an arbitrary length into an object in GCS. 
     
@@ -249,10 +187,9 @@ def upload_stream(context: object, no_compose: bool, threads: int, slice_size: i
     FILE_PATH is the optional path for a file-like object.
     """
     init(**context.obj)
-    return upload_stream_command(no_compose, threads, slice_size, io_buffer, object_path, file_path)
+    return upload_stream_command(no_compose, threads, slice_size, io_buffer,
+                                 object_path, file_path)
 
 
 if __name__ == "__main__":
     main()
-
-
