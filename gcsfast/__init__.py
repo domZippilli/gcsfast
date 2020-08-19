@@ -23,7 +23,7 @@ from multiprocessing import cpu_count
 
 from gcsfast.cli.download import download_command
 from gcsfast.cli.download_many import download_many_command
-from gcsfast.cli.upload_stream import upload_stream_command
+from gcsfast.cli.upload import upload_command
 from gcsfast.libraries.utils import set_program_log_level
 
 warnings.filterwarnings(
@@ -171,9 +171,8 @@ def download_many(context: object, processes: int, threads: int,
     type=int)
 @click.argument('object_path')
 @click.argument('file_path', type=click.Path(), required=False)
-def upload_stream(context: object, no_compose: bool, threads: int,
-                  slice_size: int, io_buffer: int, object_path: str,
-                  file_path: str) -> None:
+def upload(context: object, no_compose: bool, threads: int, slice_size: int,
+           io_buffer: int, object_path: str, file_path: str) -> None:
     """
     Stream data of an arbitrary length into an object in GCS. 
     
@@ -187,8 +186,8 @@ def upload_stream(context: object, no_compose: bool, threads: int,
     FILE_PATH is the optional path for a file-like object.
     """
     init(**context.obj)
-    return upload_stream_command(no_compose, threads, slice_size, io_buffer,
-                                 object_path, file_path)
+    return upload_command(no_compose, threads, slice_size, io_buffer,
+                          object_path, file_path)
 
 
 if __name__ == "__main__":

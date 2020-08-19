@@ -32,9 +32,9 @@ LOG = getLogger(__name__)
 stats = {}
 
 
-def upload_stream_command(no_compose: bool, threads: int, slice_size: int, io_buffer: int,
-                          object_path: str, file_path: str) -> None:
-    """Upload a stream into GCS using concurrent uploads. This is useful for 
+def upload_command(no_compose: bool, threads: int, slice_size: int,
+                   io_buffer: int, object_path: str, file_path: str) -> None:
+    """Upload a file-like into GCS using concurrent uploads. This is useful for 
     inputs which can be read faster than a single TCP stream. Also, uploads
     from a device like a single spinning disk (where seek time is non-zero)
     may benefit from this operation as opposed to a sliced upload with multiple
@@ -148,7 +148,8 @@ def read_exactly(input_stream: io.BufferedReader, length: int) -> bytes:
         accumulator += read_bytes
         if not len(read_bytes):
             break
-    LOG.debug("Read exactly {} bytes in {} operations.".format(bytes_read, read_ops))
+    LOG.debug("Read exactly {} bytes in {} operations.".format(
+        bytes_read, read_ops))
     return accumulator
 
 
