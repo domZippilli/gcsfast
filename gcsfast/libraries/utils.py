@@ -120,6 +120,8 @@ def mkdir_for_file(filename):
 
 
 def mkdir(dirname):
+    if not dirname:
+        return
     try:
         LOG.debug("Creating directory: %s", dirname)
         os.mkdir(dirname)

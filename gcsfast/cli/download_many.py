@@ -77,7 +77,11 @@ def generate_tokenized_urls(lines: Iterable[str]) -> Iterable[Dict[str, str]]:
     for line in lines:
         line = line.strip()
         if line:
-            source_part, dest_part = line.split(",")
+            source_part, dest_part = None, None
+            if "," in line:
+                source_part, dest_part = line.split(",")
+            else:
+                source_part = line
             tokens = tokenize_gcs_url(source_part)
             # Default destination filepath to the object name
             dest_part = dest_part if dest_part else tokens["path"]
