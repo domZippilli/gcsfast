@@ -45,27 +45,29 @@ See `--help` on each command for more info.
 
 `gcsfast -l DEBUG upload gs://mybucket/mystream myfile`
 
+---
 ## Benchmarks
 
 `gcsfast` compares favorably with `gsutil`. Default tunings for `gcsfast` are
 far more aggressive, but that's cheating. Here are some results with `gsutil`
 well-optimized.
 
-Note that gcsfast doesn't perform checksumming in any cases. This may account
+Note that `gcsfast` doesn't perform checksumming in any cases. This may account
 for some of the performance differences.
 
 ### Benchmark setup
 
-us-west1 for both VM and bucket
-n1-standard-32 (32 vCPUs, 120 GB memory), Skylake
-4x375GB NVME in RAID0
+- us-west1 for both VM and bucket
+- n1-standard-32 (32 vCPUs, 120 GB memory), Skylake
+- 4x375GB NVME in RAID0
 
+---
 ### Download (1 x 60GiB)
 
 Before tests, the first download is completed and discarded to ensure caching
 is not a factor.
 
-#### gsutil
+**gsutil**
 
 ```shell
 time gsutil -m \
@@ -76,28 +78,29 @@ time gsutil -m \
   cp gs://testbucket/testimage1 ./testimage1
 ```
 
-**Result times**: 1:28, 1:29, 1:28
-**Result goodput**: 5.86Gbps
+- **Result times**: 1:28, 1:29, 1:28
+- **Result goodput**: 5.86Gbps
 
-#### gcsfast
+**gcsfast**
 
 ```shell
 time gcsfast download gs://testbucket/testimage1 ./testimage1
 ```
 
-**Result times**: 0:55, 0:55, 0:55
-**Result goodput**: 9.37Gbps
+- **Result times**: 0:55, 0:55, 0:55
+- **Result goodput**: 9.37Gbps
 
-#### Analysis
+**Analysis**
 
 gcsfast is **60% faster**, with a goodput gain of 3.5Gbps.
 
+---
 ### Download (10 x 2.5GiB)
 
 Before tests, the first download is completed and discarded to ensure caching
 is not a factor.
 
-#### gsutil
+**gsutil**
 
 ```shell
 time gsutil -m \
@@ -108,25 +111,26 @@ time gsutil -m \
   cp gs://testbucket/images* ./
 ```
 
-**Result times**: 0:31, 0:31, 0:31
-**Result goodput**: 6.9Gbps
+- **Result times**: 0:31, 0:31, 0:31
+- **Result goodput**: 6.9Gbps
 
-#### gcsfast
+**gcsfast**
 
 ```shell
 time gsutil ls gs://testbucket/images* | gcsfast download-many -
 ```
 
-**Result times**: 0:14, 0:14, 0:13
-**Result goodput**: 15.64Gbps
+- **Result times**: 0:14, 0:14, 0:13
+- **Result goodput**: 15.64Gbps
 
-#### Analysis
+**Analysis**
 
 gcsfast is **125% faster**, with a goodput gain of 8.74Gbps.
 
+---
 ### Upload (1 x 2.5GiB file)
 
-#### gsutil
+**gsutil**
 
 ```shell
 time gsutil -m \
@@ -136,21 +140,21 @@ time gsutil -m \
   cp ./image1 gs://testbucket/image1
 ```
 
-***Result times***: 0:06.2, 0:06.0, 0:05.9
-***Result goodput***: 3.5Gbps
+- **Result times**: 0:06.2, 0:06.0, 0:05.9
+- **Result goodput**: 3.5Gbps
 
 *Note:* Manually setting the composite component size to the same used for
 gcsfast below, and it was slower.
 
-#### gcsfast
+**gcsfast**
 
 ```shell
 time gcsfast upload -s $((128 * 2 ** 20)) gs://muhtestbucket/image1 image1
 ```
 
-**Result times**: 0:04.2, 0:04.3, 0:04.2
-**Result goodput**: 5.1Gbps
+- **Result times**: 0:04.2, 0:04.3, 0:04.2
+- **Result goodput**: 5.1Gbps
 
-#### Analysis
+**Analysis**
 
 gcsfast is **45% faster**, with a goodput gain of 1.6Gbps.
