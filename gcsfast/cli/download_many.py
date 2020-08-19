@@ -14,19 +14,12 @@
 """
 Implementation of "download" command.
 """
-import fileinput
 import io
-import pickle
-from concurrent.futures import (ProcessPoolExecutor, ThreadPoolExecutor,
-                                as_completed, wait)
+from concurrent.futures import (ProcessPoolExecutor, ThreadPoolExecutor)
 from logging import getLogger
-from multiprocessing import cpu_count
-from pprint import pprint
 from sys import stdin
 from time import time
 from typing import Dict, Iterable, List, Tuple
-
-from google.cloud import storage
 
 from gcsfast.libraries.gcs import (DownloadJob, calculate_slice_size, get_blob,
                                    get_bucket, get_gcs_client,
@@ -99,13 +92,14 @@ def generate_download_jobs(input_iter: Iterable[Tuple[Dict[str, str], str]]
 
     This function serves mainly to generate the specific byte ranges that each
     job should target.
-    
+
     Arguments:
-        input_iter {(Dict[str, str], str)} -- (Tokenized GCS URL, destination path).
-    
+        input_iter {(Dict[str, str], str)} -- (Tokenized GCS URL,
+            destination path).
+
     Returns:
-        Iterable[DownloadJob] -- A sequence of DownloadJob definitions that will get the
-          entire blob in slices.
+        Iterable[DownloadJob] -- A sequence of DownloadJob definitions that
+            will get the entire blob in slices.
     """
     for url_tokens, output_file in input_iter:
         # Get the object metadata

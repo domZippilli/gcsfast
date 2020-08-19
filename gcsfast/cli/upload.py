@@ -34,21 +34,24 @@ stats = {}
 
 def upload_command(no_compose: bool, threads: int, slice_size: int,
                    io_buffer: int, object_path: str, file_path: str) -> None:
-    """Upload a file-like into GCS using concurrent uploads. This is useful for 
+    """Upload a file-like into GCS using concurrent uploads. This is useful for
     inputs which can be read faster than a single TCP stream. Also, uploads
     from a device like a single spinning disk (where seek time is non-zero)
     may benefit from this operation as opposed to a sliced upload with multiple
     readers.
-    
+
     Arguments:
-        no_compose {bool} -- Don't compose. The `*_sliceN` objects will be left untouched.
-        threads {int} -- The number of upload threads to use. The maximum amount of the 
-          stream that may be in memory is slice_size * threads * 2.5.
+        no_compose {bool} -- Don't compose. The `*_sliceN` objects will be left
+            untouched.
+        threads {int} -- The number of upload threads to use. The maximum
+            amount of the stream that may be in memory is
+            slice_size * threads * 2.5.
         slice_size {int} -- The slice size for each upload.
         slice_size {int} -- The IO buffer size to use for file operations.
-        object_path {str} -- The object path for the upload, or the prefix to use if 
-          composition is disabled.
-        file_path {str} -- (Optional) a file or file-like object to read. Defaults to stdin.
+        object_path {str} -- The object path for the upload, or the prefix to
+            use if composition is disabled.
+        file_path {str} -- (Optional) a file or file-like object to read.
+            Defaults to stdin.
     """
     # intialize
     io.DEFAULT_BUFFER_SIZE = io_buffer
@@ -90,22 +93,25 @@ def upload_command(no_compose: bool, threads: int, slice_size: int,
 def push_upload_jobs(input_stream: io.BufferedReader, object_path: str,
                      slice_size: int, client: storage.Client,
                      executor: Executor) -> List[Future]:
-    """Given an input stream, perform a single-threaded, single-cursor read. This
-    will be fanned out into multiple object slices, and optionally composed into
-    a single object given as `object_path`. If composition is enabled, `object_path`
-    will function as a prefix, to which the suffix `_sliceN` will be appended, where N is
-    a monotonically increasing number starting with 1.
-    
+    """Given an input stream, perform a single-threaded, single-cursor read.
+    This will be fanned out into multiple object slices, and optionally
+    composed into a single object given as `object_path`. If composition is
+    enabled, `object_path` will function as a prefix, to which the suffix
+    `_sliceN` will be appended, where N is a monotonically increasing number
+    starting with 1.
+
     Arguments:
         input_stream {io.BufferedReader} -- The input stream to read.
         object_path {str} -- The final object path or slice prefix to use.
         slice_size {int} -- The size of slice to target.
         client {storage.Client} -- The GCS client to use.
-        executor {Executor} -- The executor to use for the concurrent slice uploads.
-    
+        executor {Executor} -- The executor to use for the concurrent slice
+            uploads.
+
     Returns:
-        List[Future] -- A list of the Future objects representing each blob slice upload.
-          The result of each future will be of the type google.cloud.storage.Blob.
+        List[Future] -- A list of the Future objects representing each blob
+            slice upload. The result of each future will be of the type
+            google.cloud.storage.Blob.
     """
     futures = []
     read_bytes = 0
@@ -130,11 +136,11 @@ def push_upload_jobs(input_stream: io.BufferedReader, object_path: str,
 
 def read_exactly(input_stream: io.BufferedReader, length: int) -> bytes:
     """Read an exact amount of bytes from an input stream, unless EOF is reached.
-    
+
     Arguments:
         input_stream {io.BufferedReader} -- The input stream to read from.
         length {int} -- The exact amount of bytes to read.
-    
+
     Returns:
         bytes -- The bytes read. If zero and length is not zero, EOF.
     """
@@ -156,15 +162,16 @@ def read_exactly(input_stream: io.BufferedReader, length: int) -> bytes:
 def upload_bytes(bites: bytes, target: str,
                  client: storage.Client = None) -> storage.Blob:
     """Upload a Python bytes object to a GCS blob.
-    
+
     Arguments:
         bites {bytes} -- The bytes to upload.
         target {str} -- The blob to which to upload the bytes.
-    
+
     Keyword Arguments:
-        client {storage.Client} -- A client to use for the upload. If not provided,
-          google.cloud.get_gcs_client() will be called. (default: {None})
-    
+        client {storage.Client} -- A client to use for the upload. If not
+        provided, google.cloud.get_gcs_client() will be called.
+        (default: {None})
+
     Returns:
         storage.Blob -- The uploaded blob.
     """
@@ -179,16 +186,19 @@ def upload_bytes(bites: bytes, target: str,
 
 def compose(object_path: str, slices: List[storage.Blob],
             client: storage.Client, executor: Executor) -> storage.Blob:
-    """Compose an object from an indefinite number of slices. Composition will be performed
-    single-threaded with the final object acting as an "accumulator." Cleanup will be performed 
-    concurrently using the provided executor.
-    
+    """Compose an object from an indefinite number of slices. Composition will
+    be performed single-threaded with the final object acting as an
+    "accumulator." Cleanup will be performed concurrently using the provided
+    executor.
+
     Arguments:
         object_path {str} -- The path for the final composed blob.
-        slices {List[storage.Blob]} -- A list of the slices which should compose the blob, in order.
+        slices {List[storage.Blob]} -- A list of the slices which should
+            compose the blob, in order.
         client {storage.Client} -- A GCS client to use.
-        executor {Executor} -- A concurrent.futures.Executor to use for cleanup execution.
-    
+        executor {Executor} -- A concurrent.futures.Executor to use for
+            cleanup execution.
+
     Returns:
         storage.Blob -- The composed blob.
     """
@@ -213,16 +223,18 @@ def compose(object_path: str, slices: List[storage.Blob],
 
 def generate_composition_steps(slices: List) -> Iterable[List]:
     """Given an indefinitely long list of blobs, return the list in 31 item chunks.
-    This is one less than the maximum number of blobs which can be composed in one operation in GCS.
-    The caller should prepend an accumulator blob (the target) to the beginning of each chunk. This 
-    is easily achieved with `List.insert(0, accumulator)`.
-    
+    This is one less than the maximum number of blobs which can be composed in
+    one operation in GCS. The caller should prepend an accumulator blob (the
+    target) to the beginning of each chunk. This is easily achieved with
+    `List.insert(0, accumulator)`.
+
     Arguments:
-        slices {List} -- A list of blobs which are slices of a desired final blob.
-    
+        slices {List} -- A list of blobs which are slices of a desired final
+            blob.
+
     Returns:
         Iterable[List] -- An iteration of 31-item chunks of the input list.
-    
+
     Yields:
         Iterable[List] -- A 31-item chunk of the input list.
     """

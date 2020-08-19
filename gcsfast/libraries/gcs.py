@@ -68,14 +68,14 @@ def get_blob(bucket: storage.Bucket, url_tokens: str) -> storage.Blob:
 
 
 def calculate_slice_size(blob_size: int, tuning: Tunables) -> int:
-    """Calculate the appropriate slice size for a given blob to be divided among 
+    """Calculate the appropriate slice size for a given blob to be divided among
     some number of ranged download jobs.
-    
+
     Arguments:
         blob_size {int} -- The overall blob size.
           for job runners that will subdivide the slice across threads.
         tuning {Tunables} -- An object with transfer tunable settings.
-    
+
     Returns:
         int -- The slice size to use for the given number of jobs.
     """
@@ -91,28 +91,31 @@ def calculate_slice_size(blob_size: int, tuning: Tunables) -> int:
         LOG.info("Blob smaller than minimum slice size; cannot slice.")
         return blob_size
 
-    # Calculate the size of splitting the blob evenly, and if out of bounds, pick the nearest bound.
+    # Calculate the size of splitting the blob evenly, and if out of bounds,
+    # pick the nearest bound.
     evenly_among_workers = int(blob_size / jobs)
     if evenly_among_workers < min_slice_size:
         LOG.info(
-            "Blob will be sliced into minimum slice sizes; there will be fewer slices than workers. You may want to specify a smaller (minimum) slice size."
-        )
+            "Blob will be sliced into minimum slice sizes; there will be "
+            "fewer slices than workers. You may want to specify a smaller "
+            "(minimum) slice size.")
         return min_slice_size
     if evenly_among_workers > max_slice_size:
         LOG.info(
-            "Blob will be sliced into maximum slice sizes; there will be more slices than workers (this is OK as long as workers optimize throughput)."
-        )
+            "Blob will be sliced into maximum slice sizes; there will be more"
+            "slices than workers (this is OK as long as workers optimize "
+            "throughput).")
         return max_slice_size
     LOG.info("Blob can be sliced evenly among workers.")
     return evenly_among_workers
 
 
 class DownloadJob(dict):
-    """Describes a download job. 
-    
+    """Describes a download job.
+
     Arguments:
         dict {[type]} -- [description]
-    
+
     Returns:
         [type] -- [description]
     """

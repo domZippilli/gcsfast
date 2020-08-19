@@ -17,9 +17,9 @@ gcsfast main entry point.
 """
 import logging
 import warnings
-import click
-
 from multiprocessing import cpu_count
+
+import click
 
 from gcsfast.cli.download import download_command
 from gcsfast.cli.download_many import download_many_command
@@ -63,16 +63,16 @@ def init(log_level: str = None) -> None:
     "-p",
     "--processes",
     required=False,
-    help=
-    "Set number of processes for simultaneous downloads. Default is multiprocessing.cpu_count().",
+    help="Set number of processes for simultaneous downloads. Default is "
+    "multiprocessing.cpu_count().",
     type=int)
 @click.option(
     "-t",
     "--threads",
     required=False,
-    help=
-    "Set number of threads (per process) for simultaneous downloads. Default is 4."
-    " Default slice limits will be multiplied by this value (as slices are subdivided into threads).",
+    help="Set number of threads (per process) for simultaneous downloads. "
+    "Default is 4. Default slice limits will be multiplied by this value (as "
+    "slices are subdivided into threads).",
     type=int)
 @click.argument('object_path')
 @click.argument('file_path', type=click.Path(), required=False)
@@ -81,8 +81,9 @@ def download(context: object, processes: int, threads: int, object_path: str,
     """
     Download a GCS object as fast as possible.
 
-    Your operating system must support sparse files; numerous slices will be written into specific
-    byte offsets in the file at once, until they finally form a single contiguous file.
+    Your operating system must support sparse files; numerous slices will be
+    written into specific byte offsets in the file at once, until they finally
+    form a single contiguous file.
 
     OBJECT_PATH is the path to the object (use gs:// protocol).\n
     FILE_PATH is the filesystem path for the downloaded object.
@@ -101,40 +102,45 @@ if __name__ == "__main__":
     "-p",
     "--processes",
     required=False,
-    help=
-    "Set number of processes for simultaneous downloads. Default is multiprocessing.cpu_count().",
+    help="Set number of processes for simultaneous downloads. Default is "
+    "multiprocessing.cpu_count().",
     type=int)
 @click.option(
     "-t",
     "--threads",
     required=False,
-    help=
-    "Set number of threads (per process) for simultaneous downloads. Default is 4."
-    " Default slice limits will be multiplied by this value (as slices are subdivided into threads).",
+    help="Set number of threads (per process) for simultaneous downloads. "
+    "Default is 4. Default slice limits will be multiplied by this value (as "
+    "slices are subdivided into threads).",
     type=int)
 @click.argument('input_lines')
 def download_many(context: object, processes: int, threads: int,
                   input_lines: str) -> None:
     """
     Download a stream of GCS object URLs as fast as possible.
-    
-    Your operating system must support sparse files; numerous slices will be written into specific
-    byte offsets in the file at once, until they finally form a single contiguous file.
 
-    The incoming stream should be line delimited full GCS object URLs, like this:
+    Your operating system must support sparse files; numerous slices will be
+    written into specific byte offsets in the file at once, until they finally
+    form a single contiguous file.
+
+    The incoming stream should be line delimited full GCS object URLs,
+    like this:
 
       gs://bucket/object1
       gs://bucket/object2
 
-    The objects will be placed in $PWD according to their "filename," that is the last string when the URL is
-    split by forward slashes (i.e., gs://bucket/folder/object -> ./object).
+    The objects will be placed in $PWD according to their "filename," that is
+    the last string when the URL is split by forward slashes
+    (i.e., gs://bucket/folder/object -> ./object).
 
-    OBJECT_PATH is a file or stdin (-) from which to read full GCS object URLs, line delimited.
+    OBJECT_PATH is a file or stdin (-) from which to read full GCS object URLs,
+    line delimited.
     """
     init(**context.obj)
     return download_many_command(processes, threads, input_lines)
 
 
+# pylint: disable=too-many-arguments
 @main.command()
 @click.pass_context
 @click.option("-n",
@@ -148,16 +154,16 @@ def download_many(context: object, processes: int, threads: int,
     "-t",
     "--threads",
     required=False,
-    help=
-    "Set number of threads for simultaneous slice uploads. Default is multiprocessing.cpu_count() * 4.",
+    help="Set number of threads for simultaneous slice uploads. Default is "
+    "multiprocessing.cpu_count() * 4.",
     default=cpu_count() * 4,
     type=int)
 @click.option(
     "-s",
     "--slice-size",
     required=False,
-    help=
-    "Set the size of an upload slice. When this many bytes are read from stdin (before EOF), a new composite slice object upload will begin."
+    help="Set the size of an upload slice. When this many bytes are read from "
+    "stdin (before EOF), a new composite slice object upload will begin. "
     "Default is 16MB.",
     default=16 * 2**20,
     type=int)
@@ -165,8 +171,8 @@ def download_many(context: object, processes: int, threads: int,
     "-i",
     "--io_buffer",
     required=False,
-    help=
-    "Set io.DEFAULT_BUFFER_SIZE, which determines the size of reads from disk, in bytes. Default is 128KB.",
+    help="Set io.DEFAULT_BUFFER_SIZE, which determines the size of reads from "
+    "disk, in bytes. Default is 128KB.",
     default=128 * 2**10,
     type=int)
 @click.argument('object_path')
@@ -174,15 +180,16 @@ def download_many(context: object, processes: int, threads: int,
 def upload(context: object, no_compose: bool, threads: int, slice_size: int,
            io_buffer: int, object_path: str, file_path: str) -> None:
     """
-    Stream data of an arbitrary length into an object in GCS. 
-    
-    By default this command will read from stdin, but if a FILE_PATH is provided any file-like object (such as a FIFO) can be used.
+    Stream data of an arbitrary length into an object in GCS.
 
-    The stream will be read until slice-size or EOF is reached, at which point an upload will begin. 
-    Subsequent bytes read will be sent in similar slices until EOF. Finally, the slices will be composed into
-    the target object.
+    By default this command will read from stdin, but if a FILE_PATH is
+    provided any file-like object (such as a FIFO) can be used.
 
-    OBJECT_PATH is the path to the object (use gs:// protocol).\n
+    The stream will be read until slice-size or EOF is reached, at which point
+    an upload will begin. Subsequent bytes read will be sent in similar slices
+    until EOF. Finally, the slices will be composed into the target object.
+
+    OBJECT_PATH is the path to the object (use gs:// protocol).
     FILE_PATH is the optional path for a file-like object.
     """
     init(**context.obj)

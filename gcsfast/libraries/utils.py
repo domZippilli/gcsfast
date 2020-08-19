@@ -72,7 +72,7 @@ def set_program_log_level(command_line_arg,
     print("Log level is {}, set by {}".format(level, set_by))
 
 
-## TODO: There's a functools built-in for this
+# TODO: There's a functools built-in for this
 def memoize(func: Callable) -> Callable:
     """Decorator to memoize a function.
 
@@ -101,13 +101,14 @@ def memoize(func: Callable) -> Callable:
 
 def b_to_mb(byts: int, decimals: int = 1) -> float:
     """Convert a count of bytes into a count of megabytes.
-    
+
     Arguments:
         byts {int} -- The count of bytes.
-    
+
     Keyword Arguments:
-        decimals {int} -- The number of decimal points to include in the count of megabytes. (default: {1})
-    
+        decimals {int} -- The number of decimal points to include in the count
+            of megabytes. (default: {1})
+
     Returns:
         float -- The count of megabytes.
     """
@@ -124,19 +125,19 @@ def mkdir(dirname):
         os.mkdir(dirname)
     except OSError as exc:
         if exc.errno != errno.EEXIST:
-            LOG.exception("Error creating directory: ", dirname)
+            LOG.exception("Error creating directory: %s", dirname)
             raise
         LOG.debug("Directory already exists: %s", dirname)
 
 
 def subdivide_range(range_start, range_end, subdivisions: int) -> List[tuple]:
     """Generate n exclusive subdivisions of a numerical range.
-    
+
     Arguments:
         range_start {[type]} -- The start of the range.
         range_end {[type]} -- The end of the range.
         subdivisions {int} -- The number of subdivisions.
-    
+
     Returns:
         Iterable[tuple] -- A sequence of tuples (start, finish) for each
           subdivision.
