@@ -45,6 +45,9 @@ setup(
     python_requires='>=3.5, <4',
     install_requires=[
         'google-cloud-storage==1.28.0',
+        'gcloud-aio-storage==5.5.4',
+        'aiomultiprocess==0.8.0',
+        'contexttimer==0.3.3',
         'click',
     ],
     entry_points={

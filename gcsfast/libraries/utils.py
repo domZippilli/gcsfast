@@ -19,7 +19,7 @@ import logging
 import os
 from configparser import ConfigParser
 from functools import wraps
-from typing import Callable, List
+from typing import Callable, List, Iterable
 
 from gcsfast.constants import PROGRAM_ROOT_LOGGER_NAME
 
@@ -154,3 +154,21 @@ def subdivide_range(range_start, range_end, subdivisions: int) -> List[tuple]:
         ranges.append((start, min(finish, range_end)))
         start = finish + 1
     return ranges
+
+
+def group_n(n: int, i: Iterable) -> Iterable[Iterable]:
+    """Collect data into fixed-length chunks or blocks.
+
+    from: https://docs.python.org/3/library/itertools.html
+
+    group_n('ABCDEFG', 3, 'x') --> ABC DEF Gxx"
+
+    Args:
+        n (int): The group size.
+        i (Iterable): The iterator to group.
+
+    Returns:
+        Iterable[Iterable]: Grouped iterable.
+    """
+    args = [iter(i)] * n
+    return zip(*args)

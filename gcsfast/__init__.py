@@ -59,37 +59,19 @@ def init(log_level: str = None) -> None:
 
 @main.command()
 @click.pass_context
-@click.option(
-    "-p",
-    "--processes",
-    required=False,
-    help="Set number of processes for simultaneous downloads. Default is "
-    "multiprocessing.cpu_count().",
-    type=int)
-@click.option(
-    "-t",
-    "--threads",
-    required=False,
-    help="Set number of threads (per process) for simultaneous downloads. "
-    "Default is 4. Default slice limits will be multiplied by this value (as "
-    "slices are subdivided into threads).",
-    type=int)
-@click.argument('object_path')
-@click.argument('file_path', type=click.Path(), required=False)
-def download(context: object, processes: int, threads: int, object_path: str,
-             file_path: str) -> None:
+@click.argument('file_args', nargs=-1)
+def download(context: object, file_args: str) -> None:
     """
-    Download a GCS object as fast as possible.
+    Asyncio-based file download from GCS.
 
-    Your operating system must support sparse files; numerous slices will be
-    written into specific byte offsets in the file at once, until they finally
-    form a single contiguous file.
-
-    OBJECT_PATH is the path to the object (use gs:// protocol).\n
-    FILE_PATH is the filesystem path for the downloaded object.
+    FILE_ARGS is a sequence of either:
+      (a) n GCS objects, followed by a directory. This will result in all
+          the objects being downloaded to the directory.
+      (b) n pairs of (object, file). This will result in each object being
+          downloaded to the file it is paired with.
     """
     init(**context.obj)
-    return download_command(processes, threads, object_path, file_path)
+    return download_command(file_args)
 
 
 if __name__ == "__main__":
