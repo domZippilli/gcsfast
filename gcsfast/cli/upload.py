@@ -159,7 +159,8 @@ def read_exactly(input_stream: io.BufferedReader, length: int) -> bytes:
     return accumulator
 
 
-def upload_bytes(bites: bytes, target: str,
+def upload_bytes(bites: bytes,
+                 target: str,
                  client: storage.Client = None) -> storage.Blob:
     """Upload a Python bytes object to a GCS blob.
 
@@ -206,10 +207,10 @@ def compose(object_path: str, slices: List[storage.Blob],
     final_blob = storage.Blob.from_string(object_path)
     final_blob.upload_from_file(io.BytesIO(b''), client=client)
 
-    for composition in generate_composition_steps(slices):
-        composition.insert(0, final_blob)
-        LOG.debug("Composing: {}".format([blob.name for blob in composition]))
-        final_blob.compose(composition, client=client)
+    for chunk in generate_composition_chunks(slices):
+        chunk.insert(0, final_blob)
+        LOG.debug("Composing: {}".format([blob.name for blob in chunk]))
+        final_blob.compose(chunk, client=client)
         sleep(1)  # can only modify object once per second
 
     LOG.info("Cleanup")
@@ -221,7 +222,7 @@ def compose(object_path: str, slices: List[storage.Blob],
     return final_blob
 
 
-def generate_composition_steps(slices: List) -> Iterable[List]:
+def generate_composition_chunks(slices: List) -> Iterable[List]:
     """Given an indefinitely long list of blobs, return the list in 31 item chunks.
     This is one less than the maximum number of blobs which can be composed in
     one operation in GCS. The caller should prepend an accumulator blob (the
