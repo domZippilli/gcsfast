@@ -24,6 +24,7 @@ import click
 from gcsfast.cli.download import download_command
 from gcsfast.cli.download_many import download_many_command
 from gcsfast.cli.upload import upload_command
+from gcsfast.cli.upload_standard import upload_standard_command
 from gcsfast.libraries.utils import set_program_log_level
 
 warnings.filterwarnings(
@@ -177,6 +178,50 @@ def upload(context: object, no_compose: bool, threads: int, slice_size: int,
     init(**context.obj)
     return upload_command(no_compose, threads, slice_size, io_buffer,
                           object_path, file_path)
+
+
+# pylint: disable=too-many-arguments
+@main.command()
+@click.pass_context
+@click.option(
+    "-t",
+    "--threads",
+    required=False,
+    help="Set number of threads for simultaneous slice uploads. Default is "
+    "multiprocessing.cpu_count() * 4.",
+    default=cpu_count() * 4,
+    type=int)
+@click.option(
+    "-s",
+    "--slice-size",
+    required=False,
+    help="Set the size of an upload slice. When this many bytes are read from "
+    "stdin (before EOF), a new composite slice object upload will begin. "
+    "Default is 16MB.",
+    default=16 * 2**20,
+    type=int)
+@click.option(
+    "-i",
+    "--io_buffer",
+    required=False,
+    help="Set io.DEFAULT_BUFFER_SIZE, which determines the size of reads from "
+    "disk, in bytes. Default is 128KB.",
+    default=128 * 2**10,
+    type=int)
+@click.argument('object_path')
+@click.argument('file_path', type=click.Path(), required=False)
+def upload_standard(context: object, threads: int, slice_size: int,
+                    io_buffer: int, object_path: str, file_path: str) -> None:
+    """
+    Stream data of an arbitrary length into Standard storage class only.
+
+    This is the same as upload, but overrides the bucket default storage class
+    to Standard in order to compose objects faster. Files uploaded this way can
+    be rewritten to another storage class later.
+    """
+    init(**context.obj)
+    return upload_standard_command(threads, slice_size, io_buffer, object_path,
+                                   file_path)
 
 
 if __name__ == "__main__":
