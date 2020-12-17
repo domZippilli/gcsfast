@@ -211,15 +211,24 @@ def compose(object_path: str, slices: List[storage.Blob],
         chunk.insert(0, final_blob)
         LOG.debug("Composing: {}".format([blob.name for blob in chunk]))
         final_blob.compose(chunk, client=client)
+        delete_objects_concurrent(chunk[1:], executor, client)
         sleep(1)  # can only modify object once per second
 
-    LOG.info("Cleanup")
-    for blob in slices:
-        LOG.debug("Deleting {}".format(blob.name))
-        executor.submit(blob.delete, client=client)
-        sleep(.005)  # quick and dirty rate-limiting, sorry Dijkstra
-
     return final_blob
+
+  
+def delete_objects_concurrent(blobs, executor, client) -> None:
+    """Delete Cloud Storage objects concurrently.
+
+    Args:
+        blobs (List[storage.Blob]): The objects to delete.
+        executor (Executor): An executor to schedule the deletions in.
+        client (storage.Client): Cloud Storage client to use.
+    """
+    for blob in blobs:
+        LOG.debug("Deleting slice {}".format(blob.name))
+        executor.submit(blob.delete, client=client)
+        sleep(.005)  # quick and dirty ramp-up, sorry Dijkstra
 
 
 def generate_composition_chunks(slices: List) -> Iterable[List]:
