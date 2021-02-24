@@ -54,23 +54,6 @@ class DownloadJob(dict):
         self.__dict__.update(d)
 
 
-class StrictWindow(list):
-    def __init__(self, window_size: int, *args, **kwargs):
-        self.window_size = window_size
-        self.items_out = 0
-        super().__init__(*args, **kwargs)
-
-    def check_out_all(self):
-        for item in self:
-            yield item
-            self.items_out += 1
-            while self.items_out >= self.window_size:
-                sleep(0.02)
-
-    def check_in(self):
-        self.items_out -= 1
-
-
 class ConcurrencySettings(dict):
     def __init__(self, processes=None):
         if processes:
