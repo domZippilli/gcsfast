@@ -84,18 +84,11 @@ def download_command(file_args: str) -> None:
     # look at last item; is it a file or a directory?
     last_item = file_args[-1]
 
-    # if not existing, assume we are getting pairs of object / filedest
-    if not path.exists(last_item):
-        LOG.info("Last item doesn't exist; parsing args as source/dest pairs.")
-        if len(file_args) % 2:
-            raise Exception("Odd number of arguments, cannot construct pairs.")
-        pairs = list(group_n(2, file_args))
-        asyncio.run(download_objects(pairs))
-
     # if a directory, assume we are getting n blobs to put in one place
-    elif path.isdir(last_item):
+    if path.isdir(last_item):
         LOG.info("Last item is a directory; parsing args as n sources to "
                  "place in the directory.")
+        # construct the pairs
         pairs = []
         for blob in file_args[:-1]:
             dest = last_item + "/" + blob.rpartition("/")[2]
@@ -107,29 +100,42 @@ def download_command(file_args: str) -> None:
         asyncio.run(
             download_objects([(blob, "/dev/null") for blob in file_args[:-1]]))
 
-    # how did we get here
+    # assume we are getting pairs of object / filedest
     else:
-        raise Exception(f"Unable to determine type of {last_item}")
+        if len(file_args) % 2:
+            raise Exception("Odd number of arguments, cannot construct pairs.")
+        pairs = list(group_n(2, file_args))
+        asyncio.run(download_objects(pairs))
 
 
 async def download_objects(source_dest_pairs: List[Tuple[str, str]]):
-    # Get object metadata and plan the downloads
-    downloads = await describe_downloads(source_dest_pairs)
-    # Log out the downloads we will do
-    for download in downloads:
-        LOG.info("Downloading: %s to %s, range %s-%s",
-                 "/".join([download.bucket, download.blob]), download.output,
-                 download.start, download.end)
-    # Send the downloads into an asyncio pool
-    async with Pool(processes=cpu_count()) as pool:
-        async for job in pool.map(do_download, downloads):
-            bytes_ps = (int(job.end) - int(job.start)) / job.elapsed
-            mbytes_ps = b_to_mb(bytes_ps)
-            mbits_ps = mbytes_ps * 8
-            LOG.info(
-                "Completed job: %s\n\t"
-                "Download rate: %s MB/s; "
-                "%sMbps", job, mbytes_ps, mbits_ps)
+    with Timer() as t:
+        # Get object metadata and plan the downloads
+        downloads = await describe_downloads(source_dest_pairs)
+        # Log out the downloads we will do
+        for download in downloads:
+            LOG.info("Downloading: %s to %s, range %s-%s",
+                     "/".join([download.bucket, download.blob]),
+                     download.output, download.start, download.end)
+        overall_bytes = 0
+        # Send the downloads into an asyncio pool
+        async with Pool(processes=cpu_count()) as pool:
+            async for job in pool.map(do_download, downloads):
+                job_bytes = (int(job.end) - int(job.start))
+                overall_bytes += job_bytes
+                bytes_ps = job_bytes / job.elapsed
+                mbytes_ps = b_to_mb(bytes_ps)
+                mbits_ps = mbytes_ps * 8
+                LOG.info(
+                    "Completed job: %s\n\t"
+                    "Download rate: %s MB/s; "
+                    "%sMbps", job, mbytes_ps, mbits_ps)
+        overall_time = t.elapsed
+        LOG.info(
+            "Overall elapsed time %.1fs\n\t"
+            "Overall bytes copied %sMB\n\t"
+            "Approximate transfer rate %sMB/s", overall_time,
+            b_to_mb(overall_bytes), b_to_mb(overall_bytes / overall_time))
 
 
 async def describe_downloads(

@@ -60,14 +60,14 @@ def init(log_level: str = None) -> None:
 
 @main.command()
 @click.pass_context
-@click.argument('file_args', nargs=-1)
+@click.argument('file_args', nargs=-1, required=True)
 def download(context: object, file_args: str) -> None:
     """
     Asyncio-based file download from GCS.
 
-    FILE_ARGS is a sequence of either:
+    FILE_ARGS is a sequence of either:\n
       (a) n GCS objects, followed by a directory. This will result in all
-          the objects being downloaded to the directory.
+          the objects being downloaded to the directory.\n
       (b) n pairs of (object, file). This will result in each object being
           downloaded to the file it is paired with.
     """
