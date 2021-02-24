@@ -71,13 +71,40 @@ class StrictWindow(list):
         self.items_out -= 1
 
 
-def download_command(file_args: str) -> None:
+class ConcurrencySettings(dict):
+    def __init__(self, processes=None):
+        if processes:
+            self["processes"] = processes
+        else:
+            self["processes"] = cpu_count()
+
+    def __str__(self):
+        return super().__str__()
+
+    __getattr__ = dict.get
+    __setattr__ = dict.__setitem__
+    __delattr__ = dict.__delitem__
+
+    def __getstate__(self):
+        return self.__dict__
+
+    def __setstate__(self, d):
+        self.__dict__.update(d)
+
+
+concurrency_settings = ConcurrencySettings()
+
+
+def download_command(concurrency_multiple: float, file_args: str) -> None:
     """Downloads a single file.
 
     Arguments:
         object_path {str} -- The path to the GCS object.
         output_file {str} -- The path to the output file.
     """
+    concurrency_settings["processes"] = round(concurrency_settings.processes *
+                                              concurrency_multiple)
+
     # strip gs://, it's implied
     file_args = [x.replace("gs://", "") for x in file_args]
 
@@ -119,7 +146,7 @@ async def download_objects(source_dest_pairs: List[Tuple[str, str]]):
                      download.output, download.start, download.end)
         overall_bytes = 0
         # Send the downloads into an asyncio pool
-        async with Pool(processes=cpu_count()) as pool:
+        async with Pool(processes=concurrency_settings.processes) as pool:
             async for job in pool.map(do_download, downloads):
                 job_bytes = (int(job.end) - int(job.start))
                 overall_bytes += job_bytes
@@ -157,7 +184,8 @@ async def describe_downloads(
     for pair in source_dest_pairs:
         source, dest = pair
         source_size = int(source["size"])
-        for start, end in subdivide_range(0, source_size, cpu_count()):
+        for start, end in subdivide_range(0, source_size,
+                                          concurrency_settings.processes):
             downloads.append(
                 DownloadJob(source["bucket"], source["name"], dest, start,
                             end))

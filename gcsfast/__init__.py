@@ -57,10 +57,26 @@ def init(log_level: str = None) -> None:
     set_program_log_level(log_level)
 
 
+if __name__ == "__main__":
+    main()
+
+
 @main.command()
 @click.pass_context
+@click.option(
+    "-m",
+    "--concurrency_multiple",
+    required=False,
+    help="This command uses a process pool with asyncio. By default it will "
+    "create one process per core. Specify this argument to run more or fewer "
+    "processes. For example, on a 4-core system, a value of 2 will run 8 "
+    "processes. On some systems, a multiplier of 2 may result in better "
+    "goodput.",
+    default=1,
+    type=float)
 @click.argument('file_args', nargs=-1, required=True)
-def download(context: object, file_args: str) -> None:
+def download(context: object, concurrency_multiple: int,
+             file_args: str) -> None:
     """
     Asyncio-based file download from GCS.
 
@@ -71,11 +87,7 @@ def download(context: object, file_args: str) -> None:
           downloaded to the file it is paired with.
     """
     init(**context.obj)
-    return download_command(file_args)
-
-
-if __name__ == "__main__":
-    main()
+    return download_command(concurrency_multiple, file_args)
 
 
 # pylint: disable=too-many-arguments
