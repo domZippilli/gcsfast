@@ -18,7 +18,7 @@ import asyncio
 from logging import getLogger
 from multiprocessing import cpu_count
 from os import path
-from pprint import pformat
+from time import sleep
 from typing import List, Tuple
 
 import aiohttp
@@ -26,9 +26,49 @@ from aiomultiprocess import Pool
 from contexttimer import Timer
 from gcloud.aio.storage import Storage
 
-from gcsfast.libraries.utils import group_n, b_to_mb
+from gcsfast.libraries.utils import group_n, b_to_mb, subdivide_range
 
 LOG = getLogger(__name__)
+
+
+class DownloadJob(dict):
+    def __init__(self, bucket, blob, output, start, end, elapsed=None):
+        self["bucket"] = bucket
+        self["blob"] = blob
+        self["output"] = output
+        self["start"] = start
+        self["end"] = end
+        self["elapsed"] = elapsed
+
+    def __str__(self):
+        return super().__str__()
+
+    __getattr__ = dict.get
+    __setattr__ = dict.__setitem__
+    __delattr__ = dict.__delitem__
+
+    def __getstate__(self):
+        return self.__dict__
+
+    def __setstate__(self, d):
+        self.__dict__.update(d)
+
+
+class StrictWindow(list):
+    def __init__(self, window_size: int, *args, **kwargs):
+        self.window_size = window_size
+        self.items_out = 0
+        super().__init__(*args, **kwargs)
+
+    def check_out_all(self):
+        for item in self:
+            yield item
+            self.items_out += 1
+            while self.items_out >= self.window_size:
+                sleep(0.02)
+
+    def check_in(self):
+        self.items_out -= 1
 
 
 def download_command(file_args: str) -> None:
@@ -72,36 +112,14 @@ def download_command(file_args: str) -> None:
         raise Exception(f"Unable to determine type of {last_item}")
 
 
-class DownloadJob(dict):
-    def __init__(self, bucket, blob, output, start, end, elapsed=None):
-        self["bucket"] = bucket
-        self["blob"] = blob
-        self["output"] = output
-        self["start"] = start
-        self["end"] = end
-        self["elapsed"] = elapsed
-
-    def __str__(self):
-        return super().__str__()
-
-    __getattr__ = dict.get
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__
-
-    def __getstate__(self):
-        return self.__dict__
-
-    def __setstate__(self, d):
-        self.__dict__.update(d)
-
-
 async def download_objects(source_dest_pairs: List[Tuple[str, str]]):
     # Get object metadata and plan the downloads
     downloads = await describe_downloads(source_dest_pairs)
     # Log out the downloads we will do
     for download in downloads:
-        LOG.info("Downloading: %s to %s",
-                 "/".join([download.bucket, download.blob]), download.output)
+        LOG.info("Downloading: %s to %s, range %s-%s",
+                 "/".join([download.bucket, download.blob]), download.output,
+                 download.start, download.end)
     # Send the downloads into an asyncio pool
     async with Pool(processes=cpu_count()) as pool:
         async for job in pool.map(do_download, downloads):
@@ -109,7 +127,7 @@ async def download_objects(source_dest_pairs: List[Tuple[str, str]]):
             mbytes_ps = b_to_mb(bytes_ps)
             mbits_ps = mbytes_ps * 8
             LOG.info(
-                "Completed job:\n\t%s\n\t"
+                "Completed job: %s\n\t"
                 "Download rate: %s MB/s; "
                 "%sMbps", job, mbytes_ps, mbits_ps)
 
@@ -129,12 +147,14 @@ async def describe_downloads(
         source_dest_pairs = zip(sources, dests)
 
     # Construct the download jobs
-    # TODO: When gcloud-aio supports ranges, subdivide.
+    # TODO: Smarter subdivision.
     for pair in source_dest_pairs:
         source, dest = pair
-        downloads.append(
-            DownloadJob(source["bucket"], source["name"], dest, 0,
-                        source["size"]))
+        source_size = int(source["size"])
+        for start, end in subdivide_range(0, source_size, cpu_count()):
+            downloads.append(
+                DownloadJob(source["bucket"], source["name"], dest, start,
+                            end))
 
     return downloads
 
@@ -144,10 +164,14 @@ async def do_download(job) -> DownloadJob:
         client = Storage(session=session)
         with Timer() as t:
             with open(job.output, mode='wb') as f:
+                f.seek(job.start)
+                headers = {"Range": f"bytes={job.start}-{job.end}"}
                 # TODO: This is putting the whole download in memory.
                 # Partially, this problem will be solved by using slices,
                 # but proper buffered async writing would be nice
-                f.write(await client.download(job.bucket, job.blob,
+                f.write(await client.download(job.bucket,
+                                              job.blob,
+                                              headers=headers,
                                               timeout=60))
             job.elapsed = t.elapsed
             return job
