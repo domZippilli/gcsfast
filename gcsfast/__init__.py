@@ -22,7 +22,6 @@ from multiprocessing import cpu_count
 import click
 
 from gcsfast.cli.download import download_command
-from gcsfast.cli.download_many import download_many_command
 from gcsfast.cli.upload import upload_command
 from gcsfast.cli.upload_standard import upload_standard_command
 from gcsfast.libraries.utils import set_program_log_level
@@ -77,50 +76,6 @@ def download(context: object, file_args: str) -> None:
 
 if __name__ == "__main__":
     main()
-
-
-@main.command()
-@click.pass_context
-@click.option(
-    "-p",
-    "--processes",
-    required=False,
-    help="Set number of processes for simultaneous downloads. Default is "
-    "multiprocessing.cpu_count().",
-    type=int)
-@click.option(
-    "-t",
-    "--threads",
-    required=False,
-    help="Set number of threads (per process) for simultaneous downloads. "
-    "Default is 4. Default slice limits will be multiplied by this value (as "
-    "slices are subdivided into threads).",
-    type=int)
-@click.argument('input_lines')
-def download_many(context: object, processes: int, threads: int,
-                  input_lines: str) -> None:
-    """
-    Download a stream of GCS object URLs as fast as possible.
-
-    Your operating system must support sparse files; numerous slices will be
-    written into specific byte offsets in the file at once, until they finally
-    form a single contiguous file.
-
-    The incoming stream should be line delimited full GCS object URLs,
-    like this:
-
-      gs://bucket/object1
-      gs://bucket/object2
-
-    The objects will be placed in $PWD according to their "filename," that is
-    the last string when the URL is split by forward slashes
-    (i.e., gs://bucket/folder/object -> ./object).
-
-    OBJECT_PATH is a file or stdin (-) from which to read full GCS object URLs,
-    line delimited.
-    """
-    init(**context.obj)
-    return download_many_command(processes, threads, input_lines)
 
 
 # pylint: disable=too-many-arguments
