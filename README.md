@@ -4,37 +4,37 @@ Experimental fast file transfer for Google Cloud Storage.
 
 ## Step-by-step installation for Ubuntu 18.04 LTS in GCP
 
-These steps are written for Ubuntu 18.04 LTS on a GCE VM. This image _already
-includes git and Python 3.6_. For other systems without those installed, I
-recommend using your OS package manager to install git, and using pyenv to
-manage Python installations and environments.
-
 This installation will add `gcsfast` to Ubuntu 18.04's system Python, and will be
 available as an executable on default user paths.
 
 1. Create a GCE virtual machine with the Ubuntu 18.04 LTS image, and SSH into it.
-2. Python 3.6 is already installed, so you only need to install pip, the Python package manager, and then update it:
+2. Install Python 3.8 and update pip:
 
 ```shell
 sudo apt update
-sudo apt install python3-pip
-python3 -m pip install -U pip  # this step upgrades pip
+sudo apt install python3-pip python3.8
+python3.8 -m pip install -U pip  # this step upgrades pip
 ```
 
-3. Clone this repository and cd into it:
-
-```shell
-git clone https://github.com/domZippilli/gcsfast.git
-cd gcsfast
-```
-
-4. Install gcsfast with pip. Use the `-e` flag to make an "editable" install,
+3. Install gcsfast. Use the `-e` flag to make an "editable" install,
    such that you can modify the files in the repo (or pull the latest
    modifications) and run the executable with those modifications, without
    reinstalling. You can omit this for non-development installations.
 
 ```shell
-python3 -m pip install -e .
+git clone https://github.com/domZippilli/gcsfast.git
+cd gcsfast
+python3.8 -m pip install -e .
+```
+
+4. [Temporary] You need the 5.7.0 version of gcloud-aio-storage, which has
+   changes required by gcsfast. This hasn't been released yet, so clone the
+   repository and install from the latest source:
+
+```shell
+git clone https://github.com/talkiq/gcloud-aio.git
+cd gcloud-aio/storage
+python3.8 -m pip install .
 ```
 
 5. You will probably get a warning like:
