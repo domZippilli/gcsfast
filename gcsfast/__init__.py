@@ -106,8 +106,8 @@ def download(context: object, concurrency_multiple: int,
     required=False,
     help="Set the size of an upload slice. When this many bytes are read from "
     "stdin (before EOF), a new composite slice object upload will begin. "
-    "Default is 16MB.",
-    default=16 * 2**20,
+    "Default is automatic, where the file size will be divided by CPU cores.",
+    default=0,
     type=int)
 @click.option(
     "-i",

@@ -18,6 +18,7 @@ import io
 from concurrent.futures import Executor, Future
 from itertools import count
 from logging import getLogger
+from os import stat
 from sys import stdin
 from time import sleep, time
 from typing import Iterable, List, Any
@@ -42,26 +43,29 @@ def upload_command(threads: int, slice_size: int, io_buffer: int,
     readers.
 
     Arguments:
-        no_compose {bool} -- Don't compose. The `*_sliceN` objects will be left
-            untouched.
         threads {int} -- The number of upload threads to use. The maximum
             amount of the stream that may be in memory is
             slice_size * threads * 2.5.
         slice_size {int} -- The slice size for each upload.
         io_buffer {int} -- The IO buffer size to use for file operations.
-        object_path {str} -- The object path for the upload, or the prefix to
-            use if composition is disabled.
         file_path {str} -- (Optional) a file or file-like object to read.
             Defaults to stdin.
+        object_path {str} -- The object path for the upload, or the prefix to
+            use if composition is disabled.
     """
     # intialize
     io.DEFAULT_BUFFER_SIZE = io_buffer
+
     input_stream = stdin.buffer
     if file_path and file_path != "-":
         input_stream = open(file_path, "rb")
-    upload_slice_size = slice_size
+
+    upload_slice_size = slice_size if slice_size else max(
+        [stat(file_path).st_size / threads, 16 * 2**20])
+
     executor = BoundedThreadPoolExecutor(max_workers=threads,
                                          queue_size=int(threads * 1.5))
+
     gcs = get_gcs_client()
 
     # start reading and uploading
