@@ -29,7 +29,8 @@ python3.8 -m pip install -e .
 
 4. [Temporary] You need the 5.7.0 version of gcloud-aio-storage, which has
    changes required by gcsfast. This hasn't been released yet, so clone the
-   repository and install from the latest source:
+   repository and install from the latest source to overwrite the installed
+   version:
 
 ```shell
 git clone https://github.com/talkiq/gcloud-aio.git
@@ -86,7 +87,8 @@ far more aggressive, but that's cheating. So, the following are results with
 `gsutil` well-optimized.
 
 Note that `gcsfast` doesn't perform checksumming in any cases. This may account
-for some of the performance differences.
+for some of the performance differences. These benchmarks were validated with
+checksums after-the-fact, however.
 
 ### Benchmark setup
 
@@ -101,7 +103,7 @@ for some of the performance differences.
 Before tests, the first download is completed and discarded to ensure caching
 is not a factor.
 
-**gsutil**
+#### gsutil to local SSD
 
 ```shell
 time gsutil -m \
@@ -112,21 +114,39 @@ time gsutil -m \
   cp gs://testbucket/testimage1 ./testimage1
 ```
 
-- **Result times**: 1:28, 1:29, 1:28
-- **Result goodput**: 5.86Gbps
+- **Result times**: 1:36, 1:42, 1:42
+- **Result goodput**: 5.15Gbps
 
-**gcsfast**
+#### gcsfast to local SSD
 
 ```shell
 time gcsfast download gs://testbucket/testimage1 ./testimage1
 ```
 
-- **Result times**: 0:55, 0:55, 0:55
-- **Result goodput**: 9.37Gbps
+- **Result times**: 1:04, 1:02, 1:06
+- **Result goodput**: 8.05Gbps
 
-**Analysis**
+#### gsutil to tmpfs
 
-gcsfast is **60% faster**, with a goodput gain of 3.5Gbps.
+The same as above, but using tmpfs RAM disk as the destination.
+
+- **Result times**: 1:27, 1:25, 1:25
+- **Result goodput**: 6.01Gbps
+
+#### gcsfast to tmpfs
+
+The same as above, but using tmpfs RAM disk as the destination.
+
+- **Result times**: 0:43, 0:43, 0:44
+- **Result goodput**: 11.89Gbps
+
+#### Analysis
+
+gcsfast is **56% faster** to local SSD RAID, with a goodput gain of 2.9Gbps.
+gcsfast is **98% faster** to RAM disk, with a goodput gain of 5.88Gbps.
+
+These data indicate gcsfast is likely to take more advantage of faster
+destination devices, like SSD arrays and high-performance filers.
 
 ---
 
@@ -135,7 +155,7 @@ gcsfast is **60% faster**, with a goodput gain of 3.5Gbps.
 Before tests, the first download is completed and discarded to ensure caching
 is not a factor.
 
-**gsutil**
+#### gsutil to local SSD
 
 ```shell
 time gsutil -m \
@@ -146,27 +166,27 @@ time gsutil -m \
   cp gs://testbucket/images* ./
 ```
 
-- **Result times**: 0:31, 0:31, 0:31
-- **Result goodput**: 6.9Gbps
+- **Result times**: 0:36, 0:37, 0:36
+- **Result goodput**: 5.91Gbps
 
-**gcsfast**
+#### gcsfast to local SSD
 
 ```shell
-time gsutil ls gs://testbucket/images* | gcsfast download-many -
+time gcsfast download $(gsutil ls gs://testbucket/images*) .
 ```
 
-- **Result times**: 0:14, 0:14, 0:13
-- **Result goodput**: 15.64Gbps
+- **Result times**: 0:21, 0:22, 0:21
+- **Result goodput**: 10.07Gbps
 
-**Analysis**
+#### Analysis
 
-gcsfast is **125% faster**, with a goodput gain of 8.74Gbps.
+gcsfast is **70% faster**, with a goodput gain of 4.16Gbps.
 
 ---
 
 ### Upload (1 x 2.5GiB file)
 
-**gsutil**
+#### gsutil from local SSD
 
 ```shell
 time gsutil -m \
@@ -176,21 +196,18 @@ time gsutil -m \
   cp ./image1 gs://testbucket/image1
 ```
 
-- **Result times**: 0:06.2, 0:06.0, 0:05.9
-- **Result goodput**: 3.5Gbps
+- **Result times**: 0:06.5, 0:06.4, 0:06.3
+- **Result goodput**: 3.36Gbps
 
-_Note:_ Manually setting the composite component size to the same used for
-gcsfast below, and it was slower.
-
-**gcsfast**
+#### gcsfast from local SSD
 
 ```shell
-time gcsfast upload -s $((128 * 2 ** 20)) gs://muhtestbucket/image1 image1
+time gcsfast upload_standard gs://testbucket/image1 image1
 ```
 
-- **Result times**: 0:04.2, 0:04.3, 0:04.2
-- **Result goodput**: 5.1Gbps
+- **Result times**: 0:03.0, 0:03.0, 0:03.0
+- **Result goodput**: 7.16Gbps
 
-**Analysis**
+#### Analysis
 
-gcsfast is **45% faster**, with a goodput gain of 1.6Gbps.
+gcsfast is **113% faster**, with a goodput gain of 3.8Gbps.
