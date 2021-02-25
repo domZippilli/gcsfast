@@ -70,13 +70,13 @@ _Download an object to local file_
 
 `gcsfast download gs://mybucket/myblob destination_file`
 
-_Upload from stdin with a fixed slice size_
+_Upload from stdin_
 
-`gcsfast upload_standard gs://mybucket/mystream`
+`gcsfast upload_standard - gs://mybucket/mystream`
 
-_Upload from file/FIFO with a fixed slice size_
+_Upload from file/FIFO_
 
-`gcsfast upload_standard gs://mybucket/mystream myfile`
+`gcsfast upload_standard myfile gs://mybucket/myfile`
 
 ---
 

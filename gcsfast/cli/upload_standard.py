@@ -34,7 +34,7 @@ stats = {}
 
 
 def upload_standard_command(threads: int, slice_size: int, io_buffer: int,
-                            object_path: str, file_path: str) -> None:
+                            file_path: str, object_path: str) -> None:
     """Upload a file-like into GCS using concurrent uploads. This is useful for
     inputs which can be read faster than a single TCP stream. Also, uploads
     from a device like a single spinning disk (where seek time is non-zero)
@@ -57,7 +57,7 @@ def upload_standard_command(threads: int, slice_size: int, io_buffer: int,
     # intialize
     io.DEFAULT_BUFFER_SIZE = io_buffer
     input_stream = stdin.buffer
-    if file_path:
+    if file_path and file_path != "-":
         input_stream = open(file_path, "rb")
     upload_slice_size = slice_size
     executor = BoundedThreadPoolExecutor(max_workers=threads,

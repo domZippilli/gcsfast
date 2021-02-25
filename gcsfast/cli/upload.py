@@ -33,7 +33,7 @@ stats = {}
 
 
 def upload_command(no_compose: bool, threads: int, slice_size: int,
-                   io_buffer: int, object_path: str, file_path: str) -> None:
+                   io_buffer: int, file_path: str, object_path: str) -> None:
     """Upload a file-like into GCS using concurrent uploads. This is useful for
     inputs which can be read faster than a single TCP stream. Also, uploads
     from a device like a single spinning disk (where seek time is non-zero)
@@ -56,7 +56,7 @@ def upload_command(no_compose: bool, threads: int, slice_size: int,
     # intialize
     io.DEFAULT_BUFFER_SIZE = io_buffer
     input_stream = stdin.buffer
-    if file_path:
+    if file_path and file_path != "-":
         input_stream = open(file_path, "rb")
     upload_slice_size = slice_size
     executor = BoundedThreadPoolExecutor(max_workers=threads,
@@ -216,7 +216,7 @@ def compose(object_path: str, slices: List[storage.Blob],
 
     return final_blob
 
-  
+
 def delete_objects_concurrent(blobs, executor, client) -> None:
     """Delete Cloud Storage objects concurrently.
 

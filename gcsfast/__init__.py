@@ -125,10 +125,10 @@ def download(context: object, concurrency_multiple: int,
     "disk, in bytes. Default is 128KB.",
     default=128 * 2**10,
     type=int)
-@click.argument('object_path')
 @click.argument('file_path', type=click.Path(), required=False)
+@click.argument('object_path')
 def upload(context: object, no_compose: bool, threads: int, slice_size: int,
-           io_buffer: int, object_path: str, file_path: str) -> None:
+           io_buffer: int, file_path: str, object_path: str) -> None:
     """
     Stream data of an arbitrary length into an object in GCS.
 
@@ -144,7 +144,7 @@ def upload(context: object, no_compose: bool, threads: int, slice_size: int,
     """
     init(**context.obj)
     return upload_command(no_compose, threads, slice_size, io_buffer,
-                          object_path, file_path)
+                          file_path, object_path)
 
 
 # pylint: disable=too-many-arguments
@@ -175,10 +175,10 @@ def upload(context: object, no_compose: bool, threads: int, slice_size: int,
     "disk, in bytes. Default is 128KB.",
     default=128 * 2**10,
     type=int)
-@click.argument('object_path')
 @click.argument('file_path', type=click.Path(), required=False)
+@click.argument('object_path')
 def upload_standard(context: object, threads: int, slice_size: int,
-                    io_buffer: int, object_path: str, file_path: str) -> None:
+                    io_buffer: int, file_path: str, object_path: str) -> None:
     """
     Stream data of an arbitrary length into Standard storage class only.
 
@@ -187,8 +187,8 @@ def upload_standard(context: object, threads: int, slice_size: int,
     be rewritten to another storage class later.
     """
     init(**context.obj)
-    return upload_standard_command(threads, slice_size, io_buffer, object_path,
-                                   file_path)
+    return upload_standard_command(threads, slice_size, io_buffer, file_path,
+                                   object_path)
 
 
 if __name__ == "__main__":
