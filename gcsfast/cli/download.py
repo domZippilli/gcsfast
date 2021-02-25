@@ -137,7 +137,7 @@ async def download_objects(source_dest_pairs: List[Tuple[str, str]]):
                 mbits_ps = mbytes_ps * 8
                 LOG.info(
                     "Completed job: %s\n\t"
-                    "Download rate: %s MB/s; "
+                    "Job download rate: %s MB/s; "
                     "%sMbps", job, mbytes_ps, mbits_ps)
         overall_time = t.elapsed
         LOG.info(
