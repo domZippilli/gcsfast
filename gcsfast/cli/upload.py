@@ -63,6 +63,9 @@ def upload_command(threads: int, slice_size: int, io_buffer: int,
     upload_slice_size = slice_size if slice_size else max(
         [int(stat(file_path).st_size / threads), 16 * 2**20])
 
+    LOG.info("Will use approximately %s slices total.",
+             int(stat(file_path).st_size / upload_slice_size))
+
     executor = BoundedThreadPoolExecutor(max_workers=threads,
                                          queue_size=int(threads * 1.5))
 
