@@ -12,14 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Implementation of "upload_stream" command.
+Implementation of "upload_standard" command.
 """
 import io
 from concurrent.futures import Executor, Future
+from itertools import count
 from logging import getLogger
 from sys import stdin
 from time import sleep, time
-from typing import Iterable, List
+from typing import Iterable, List, Any
 
 from google.cloud import storage
 
@@ -32,8 +33,8 @@ LOG = getLogger(__name__)
 stats = {}
 
 
-def upload_command(no_compose: bool, threads: int, slice_size: int,
-                   io_buffer: int, file_path: str, object_path: str) -> None:
+def upload_command(threads: int, slice_size: int, io_buffer: int,
+                   file_path: str, object_path: str) -> None:
     """Upload a file-like into GCS using concurrent uploads. This is useful for
     inputs which can be read faster than a single TCP stream. Also, uploads
     from a device like a single spinning disk (where seek time is non-zero)
@@ -47,7 +48,7 @@ def upload_command(no_compose: bool, threads: int, slice_size: int,
             amount of the stream that may be in memory is
             slice_size * threads * 2.5.
         slice_size {int} -- The slice size for each upload.
-        slice_size {int} -- The IO buffer size to use for file operations.
+        io_buffer {int} -- The IO buffer size to use for file operations.
         object_path {str} -- The object path for the upload, or the prefix to
             use if composition is disabled.
         file_path {str} -- (Optional) a file or file-like object to read.
@@ -75,9 +76,8 @@ def upload_command(no_compose: bool, threads: int, slice_size: int,
         slices.append(slyce.result())
     transfer_time = time() - start_time
 
-    # compose, if desired
-    if not no_compose:
-        compose(object_path, slices, gcs, executor)
+    # compose
+    compose(object_path, slices, gcs, executor)
 
     # cleanup and exit
     executor.shutdown(True)
@@ -179,6 +179,7 @@ def upload_bytes(bites: bytes,
     client = client if client else get_gcs_client()
     slice_reader = io.BytesIO(bites)
     blob = storage.Blob.from_string(target)
+    blob.storage_class = "STANDARD"
     LOG.debug("Starting upload of: {}".format(blob.name))
     blob.upload_from_file(slice_reader, client=client)
     LOG.info("Completed upload of: {}".format(blob.name))
@@ -188,9 +189,9 @@ def upload_bytes(bites: bytes,
 def compose(object_path: str, slices: List[storage.Blob],
             client: storage.Client, executor: Executor) -> storage.Blob:
     """Compose an object from an indefinite number of slices. Composition will
-    be performed single-threaded with the final object acting as an
-    "accumulator." Cleanup will be performed concurrently using the provided
-    executor.
+    be performed single-threaded but using a tree of accumulators to avoid the
+    one second object update cooldown period in GCS. Cleanup will be performed
+    concurrently using the provided executor.
 
     Arguments:
         object_path {str} -- The path for the final composed blob.
@@ -204,26 +205,85 @@ def compose(object_path: str, slices: List[storage.Blob],
         storage.Blob -- The composed blob.
     """
     LOG.info("Composing")
-    final_blob = storage.Blob.from_string(object_path)
-    final_blob.upload_from_file(io.BytesIO(b''), client=client)
 
-    for chunk in generate_composition_chunks(slices):
-        chunk.insert(0, final_blob)
-        LOG.debug("Composing: {}".format([blob.name for blob in chunk]))
-        final_blob.compose(chunk, client=client)
-        delete_objects_concurrent(chunk[1:], executor, client)
-        sleep(1)  # can only modify object once per second
+    chunks = generate_composition_chunks(slices)
+    next_chunks = []
+    identifier = generate_hex_sequence()
+
+    while len(next_chunks) > 32 or not next_chunks:  # falsey empty list is ok
+        for chunk in chunks:
+            # make intermediate accumulator
+            intermediate_accumulator = storage.Blob.from_string(
+                object_path + next(identifier))
+            LOG.info("Intermediate composition: %s", intermediate_accumulator)
+            future_iacc = executor.submit(compose_and_cleanup,
+                                          intermediate_accumulator, chunk,
+                                          client, executor)
+            # store reference for next iteration
+            next_chunks.append(future_iacc)
+        # let intermediate accumulators finish and go again
+        chunks = generate_composition_chunks(next_chunks)
+
+    # Now can do final compose
+    final_blob = storage.Blob.from_string(object_path)
+    final_chunk = [blob for sublist in chunks for blob in sublist]
+    compose_and_cleanup(final_blob, final_chunk, client, executor)
+
+    LOG.info("Composition complete")
 
     return final_blob
 
 
-def delete_objects_concurrent(blobs, executor, client) -> None:
-    """Delete Cloud Storage objects concurrently.
+def ensure_results(maybe_futures: List[Any]) -> List[Any]:
+    """Pass in a list that may contain Future, and if so, wait for
+    the result of the Future and append it; for all other types in the list,
+    simply append the value.
 
     Args:
-        blobs (List[storage.Blob]): The objects to delete.
-        executor (Executor): An executor to schedule the deletions in.
-        client (storage.Client): Cloud Storage client to use.
+        maybe_futures (List[Any]): A list which may contain Futures.
+
+    Returns:
+        List[Any]: A list with the values passed in, or Future.result() values.
+    """
+    results = []
+    for mf in maybe_futures:
+        if isinstance(mf, Future):
+            results.append(mf.result())
+        else:
+            results.append(mf)
+    return results
+
+
+def compose_and_cleanup(blob: storage.Blob, chunk: List[storage.Blob],
+                        client: storage.Client, executor: Executor):
+    """Compose a blob and clean up its components. Cleanup tasks will be
+    scheduled in the provided executor and the composed blob immediately
+    returned.
+
+    Args:
+        blob (storage.Blob): The blob to be composed.
+        chunk (List[storage.Blob]): The component blobs.
+        client (storage.Client): A GCS client.
+        executor (Executor): An executor in which to schedule cleanup tasks.
+
+    Returns:
+        storage.Blob: The composed blob.
+    """
+    # wait on results if the chunk is full of futures
+    chunk = ensure_results(chunk)
+    blob.compose(chunk, client=client)
+    # cleanup components, no longer need them
+    delete_objects_concurrent(chunk, executor, client)
+    return blob
+
+
+def delete_objects_concurrent(blobs, executor, client) -> None:
+    """Delete GCS objects concurrently.
+
+    Args:
+        blobs ([type]): The objects to delete.
+        executor ([type]): An executor to schedule the deletions in.
+        client ([type]): GCS client to use.s
     """
     for blob in blobs:
         LOG.debug("Deleting slice {}".format(blob.name))
@@ -231,12 +291,19 @@ def delete_objects_concurrent(blobs, executor, client) -> None:
         sleep(.005)  # quick and dirty ramp-up, sorry Dijkstra
 
 
-def generate_composition_chunks(slices: List) -> Iterable[List]:
-    """Given an indefinitely long list of blobs, return the list in 31 item chunks.
-    This is one less than the maximum number of blobs which can be composed in
-    one operation in GCS. The caller should prepend an accumulator blob (the
-    target) to the beginning of each chunk. This is easily achieved with
-    `List.insert(0, accumulator)`.
+def generate_hex_sequence() -> Iterable[str]:
+    """Generate an indefinite sequence of hexadecimal integers.
+
+    Yields:
+        Iterator[Iterable[str]]: The sequence of hex digits, as strings.
+    """
+    for i in count(0):
+        yield hex(i)[2:]
+
+
+def generate_composition_chunks(slices: List,
+                                chunk_size: int = 32) -> Iterable[List]:
+    """Given an indefinitely long list of blobs, return the list in 32 item chunks.
 
     Arguments:
         slices {List} -- A list of blobs which are slices of a desired final
@@ -249,6 +316,6 @@ def generate_composition_chunks(slices: List) -> Iterable[List]:
         Iterable[List] -- A 31-item chunk of the input list.
     """
     while len(slices):
-        chunk = slices[:31]
+        chunk = slices[:chunk_size]
         yield chunk
-        slices = slices[31:]
+        slices = slices[chunk_size:]
