@@ -18,7 +18,6 @@ import asyncio
 from logging import getLogger
 from multiprocessing import cpu_count
 from os import path
-from time import sleep
 from typing import List, Tuple
 
 import aiohttp
