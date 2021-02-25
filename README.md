@@ -201,7 +201,7 @@ gcsfast is **56% faster** to local SSD RAID, with a goodput gain of 2.9Gbps.
 gcsfast is **98% faster** to RAM disk, with a goodput gain of 5.88Gbps.
 
 These data indicate gcsfast is likely to take more advantage of faster
-destination devices, like SSD arrays and high-performance filers.
+writing devices, like high-performance filers.
 
 ---
 
@@ -239,6 +239,38 @@ gcsfast is **70% faster**, with a goodput gain of 4.16Gbps.
 
 ---
 
+### Upload (1 x 60GiB file)
+
+#### gsutil from local SSD
+
+```shell
+time gsutil -m \
+  -o"GSUtil:parallel_composite_upload_threshold=1" \
+  -o"GSUtil:parallel_process_count=32" \
+  -o"GSUtil:parallel_thread_count=3" \
+  cp ./testimage1 gs://testbucket/testimage1
+```
+
+- **Result times**: 1:23, 1:24, 1:22
+- **Result goodput**: 6.21Gbps
+
+#### gcsfast from local SSD
+
+```shell
+time gcsfast upload testimage1 gs://testbucket/testimage1
+```
+
+- **Result times**: 1:08, 1:08, 1:08
+- **Result goodput**: 7.58Gbps
+
+#### Analysis
+
+gcsfast is **22% faster**, with a goodput gain of 1.37Gbps.
+
+These tests were repeated with tmpfs, with no change.
+
+---
+
 ### Upload (1 x 2.5GiB file)
 
 #### gsutil from local SSD
@@ -257,7 +289,7 @@ time gsutil -m \
 #### gcsfast from local SSD
 
 ```shell
-time gcsfast upload_standard gs://testbucket/image1 image1
+time gcsfast upload image1 gs://testbucket/image1
 ```
 
 - **Result times**: 0:03.0, 0:03.0, 0:03.0
