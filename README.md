@@ -4,11 +4,13 @@ Experimental fast file transfer for Google Cloud Storage.
 
 ## Status
 
-This software is offered on an _EXPERIMENTAL_ basis, and only guaranteed to
+This software is offered on an _"AS IS", EXPERIMENTAL_ basis, and only guaranteed to
 demonstrate concepts -- NOT to act as production data transfer software. Any
 and all usage of it is at your sole discretion. Any costs or damages resulting
 from its use are the sole responsibility of the user. You are advised to read
-and understand all source code in this software before using it.
+and understand all source code in this software before using it for any reason.
+
+---
 
 ## Step-by-step installation for Ubuntu 18.04 LTS in GCP
 
@@ -21,7 +23,7 @@ available as an executable on default user paths.
 ```shell
 sudo apt update
 sudo apt install python3-pip python3.8
-python3.8 -m pip install -U pip  # this step upgrades pip
+python3.8 -m pip install -U pip
 ```
 
 3. Install gcsfast. Use the `-e` flag to make an "editable" install,
@@ -53,6 +55,8 @@ python3.8 -m pip install .
 echo PATH=/home/$USER/.local/bin:$PATH >> ~/.bashrc && source ~/.bashrc
 ```
 
+---
+
 ## Usage
 
 ```
@@ -74,17 +78,57 @@ gcsfast is designed to perform well in large file transfers (.5GB or greater).
 Smaller files are supported, but currently not detected and optimized. As such,
 small file transfers may be a bit slower or use more operations than expected.
 
-### Examples
+### Upload
 
-_Download an object to local file_
+For each given file, gcsfast will get the file size, and upload "slices" of the
+file into _separate objects_ simultaneously, and then use the `compose`
+operation to create a single object. Therefore, per file, operations costs will
+be significantly more than a single upload operation.
+
+By default, upload slices will equal your CPU count as reported by the Python
+`multiprocessing` module. So a typical upload will look like this, as far as
+GCS operations:
+
+- 1 Class A \* slices
+- 1 Class A to compose the slices into the final object
+
+In some cases where there are more than 32 slices, the number of compositions
+may be higher. For example, if there are 64 slices, there will be three; one to
+compose slices [1-32], one to compose slices [33-64], and one to compose the
+previous two intermediate slices into one.
+
+Note that these operations costs are very similar to those incurred by `gsutil`.
+
+Upload only supports creating objects in the Standard storage class. You cannot
+compose across storage classes, so you must do a final
+[rewrite](https://cloud.google.com/storage/docs/changing-storage-classes#gsutil)
+operation to the final storage class.
+
+### Download
+
+For each given object, gcsfast will get the object size, and download "slices"
+of the object simultaneously into a single file on the local filesystem. This
+requires a filesystem which supports sparse files, which almost all do.
+
+As with upload, operations costs can be higher. For each file, you can expect:
+
+- 1 class B operation \* slices
+
+Again, these operations costs are very similar to those incurred by `gsutil`.
+
+---
+
+## Examples
+
+#### Download an object to local file
 
 `gcsfast download gs://mybucket/myblob destination_file`
 
-_Upload from stdin_
+#### Upload from stdin
 
 `gcsfast upload - gs://mybucket/mystream`
 
-_Upload from file/FIFO_
+#### Upload from file/FIFO
 
 `gcsfast upload myfile gs://mybucket/myfile`
 
@@ -153,6 +197,7 @@ The same as above, but using tmpfs RAM disk as the destination.
 #### Analysis
 
 gcsfast is **56% faster** to local SSD RAID, with a goodput gain of 2.9Gbps.
+
 gcsfast is **98% faster** to RAM disk, with a goodput gain of 5.88Gbps.
 
 These data indicate gcsfast is likely to take more advantage of faster
