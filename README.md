@@ -2,11 +2,47 @@
 
 Experimental fast file transfer for Google Cloud Storage.
 
-## Installation
+## Step-by-step installation for Ubuntu 18.04 LTS in GCP
 
-Clone this repo using `git clone ...`
+These steps are written for Ubuntu 18.04 LTS on a GCE VM. This image _already
+includes git and Python 3.6_. For other systems without those installed, I
+recommend using your OS package manager to install git, and using pyenv to
+manage Python installations and environments.
 
-`cd` into the repo and run `pip install .` or `pip install -e .` if you plan on making and running code edits.
+This installation will add `gcsfast` to Ubuntu 18.04's system Python, and will be
+available as an executable on default user paths.
+
+1. Create a GCE virtual machine with the Ubuntu 18.04 LTS image, and SSH into it.
+2. Python 3.6 is already installed, so you only need to install pip, the Python package manager, and then update it:
+
+```shell
+sudo apt update
+sudo apt install python3-pip
+python3 -m pip install -U pip  # this step upgrades pip
+```
+
+3. Clone this repository and cd into it:
+
+```shell
+git clone https://github.com/domZippilli/gcsfast.git
+cd gcsfast
+```
+
+4. Install gcsfast with pip. Use the `-e` flag to make an "editable" install,
+   such that you can modify the files in the repo (or pull the latest
+   modifications) and run the executable with those modifications, without
+   reinstalling. You can omit this for non-development installations.
+
+```shell
+python3 -m pip install -e .
+```
+
+5. You will probably get a warning like:
+   `WARNING: The script gcsfast is installed in '/home/$USER/.local/bin' which is not on PATH.` To fix this, simply modify your path:
+
+```shell
+echo PATH=/home/$USER/.local/bin:$PATH >> ~/.bashrc && source ~/.bashrc
+```
 
 ## Usage
 
@@ -29,28 +65,25 @@ See `--help` on each command for more info.
 
 ### Examples
 
-*Download an object to local file*
+_Download an object to local file_
 
-`gcsfast -l DEBUG download gs://mybucket/myblob destination_file`
+`gcsfast download gs://mybucket/myblob destination_file`
 
-*Download a series of objects described in a file*
+_Upload from stdin with a fixed slice size_
 
-`gcsfast -l DEBUG download-many files.txt`
+`gcsfast upload_standard gs://mybucket/mystream`
 
-*Upload from stdin with a fixed slice size*
+_Upload from file/FIFO with a fixed slice size_
 
-`gcsfast -l DEBUG upload gs://mybucket/mystream`
-
-*Upload from file/FIFO with a fixed slice size*
-
-`gcsfast -l DEBUG upload gs://mybucket/mystream myfile`
+`gcsfast upload_standard gs://mybucket/mystream myfile`
 
 ---
+
 ## Benchmarks
 
 `gcsfast` compares favorably with `gsutil`. Default tunings for `gcsfast` are
-far more aggressive, but that's cheating. Here are some results with `gsutil`
-well-optimized.
+far more aggressive, but that's cheating. So, the following are results with
+`gsutil` well-optimized.
 
 Note that `gcsfast` doesn't perform checksumming in any cases. This may account
 for some of the performance differences.
@@ -62,6 +95,7 @@ for some of the performance differences.
 - 4x375GB NVME in RAID0
 
 ---
+
 ### Download (1 x 60GiB)
 
 Before tests, the first download is completed and discarded to ensure caching
@@ -95,6 +129,7 @@ time gcsfast download gs://testbucket/testimage1 ./testimage1
 gcsfast is **60% faster**, with a goodput gain of 3.5Gbps.
 
 ---
+
 ### Download (10 x 2.5GiB)
 
 Before tests, the first download is completed and discarded to ensure caching
@@ -128,6 +163,7 @@ time gsutil ls gs://testbucket/images* | gcsfast download-many -
 gcsfast is **125% faster**, with a goodput gain of 8.74Gbps.
 
 ---
+
 ### Upload (1 x 2.5GiB file)
 
 **gsutil**
@@ -143,7 +179,7 @@ time gsutil -m \
 - **Result times**: 0:06.2, 0:06.0, 0:05.9
 - **Result goodput**: 3.5Gbps
 
-*Note:* Manually setting the composite component size to the same used for
+_Note:_ Manually setting the composite component size to the same used for
 gcsfast below, and it was slower.
 
 **gcsfast**
