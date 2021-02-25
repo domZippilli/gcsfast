@@ -2,6 +2,14 @@
 
 Experimental fast file transfer for Google Cloud Storage.
 
+## Status
+
+This software is offered on an _EXPERIMENTAL_ basis, and only guaranteed to
+demonstrate concepts -- NOT to act as production data transfer software. Any
+and all usage of it is at your sole discretion. Any costs or damages resulting
+from its use are the sole responsibility of the user. You are advised to read
+and understand all source code in this software before using it.
+
 ## Step-by-step installation for Ubuntu 18.04 LTS in GCP
 
 This installation will add `gcsfast` to Ubuntu 18.04's system Python, and will be
@@ -57,12 +65,14 @@ Options:
   --help                Show this message and exit.
 
 Commands:
-  download       Download a GCS object as fast as possible.
-  download-many  Download a stream of GCS objects as fast as possible.
-  upload-stream  Stream data of an arbitrary length into an object in GCS.
+  download  Asyncio-based file download from GCS.
+  upload    Stream data of an arbitrary length into an object in GCS.
 ```
 
-See `--help` on each command for more info.
+gcsfast is designed to perform well in large file transfers (.5GB or greater).
+
+Smaller files are supported, but currently not detected and optimized. As such,
+small file transfers may be a bit slower or use more operations than expected.
 
 ### Examples
 
@@ -72,11 +82,11 @@ _Download an object to local file_
 
 _Upload from stdin_
 
-`gcsfast upload_standard - gs://mybucket/mystream`
+`gcsfast upload - gs://mybucket/mystream`
 
 _Upload from file/FIFO_
 
-`gcsfast upload_standard myfile gs://mybucket/myfile`
+`gcsfast upload myfile gs://mybucket/myfile`
 
 ---
 
@@ -211,3 +221,19 @@ time gcsfast upload_standard gs://testbucket/image1 image1
 #### Analysis
 
 gcsfast is **113% faster**, with a goodput gain of 3.8Gbps.
+
+## Copyright and License
+
+Copyright 2021 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
