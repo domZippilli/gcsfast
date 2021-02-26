@@ -18,15 +18,20 @@ This installation will add `gcsfast` to Ubuntu 18.04's system Python, and will b
 available as an executable on default user paths.
 
 1. Create a GCE virtual machine with the Ubuntu 18.04 LTS image, and SSH into it.
-2. Install Python 3.8 and update pip:
+2. Install Python 3.8:
 
 ```shell
 sudo apt update
 sudo apt install python3-pip python3.8
+```
+
+3. Upgrade pip.
+
+```shell
 python3.8 -m pip install -U pip
 ```
 
-3. Install gcsfast. Use the `-e` flag to make an "editable" install,
+4. Install gcsfast. Use the `-e` flag to make an "editable" install,
    such that you can modify the files in the repo (or pull the latest
    modifications) and run the executable with those modifications, without
    reinstalling. You can omit this for non-development installations.
@@ -43,6 +48,7 @@ python3.8 -m pip install -e .
    version:
 
 ```shell
+cd ../
 git clone https://github.com/talkiq/gcloud-aio.git
 cd gcloud-aio/storage
 python3.8 -m pip install .
