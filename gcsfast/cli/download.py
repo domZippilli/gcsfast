@@ -15,6 +15,7 @@
 Implementation of "download" command.
 """
 import asyncio
+import math
 from logging import getLogger
 from multiprocessing import cpu_count
 from os import path
@@ -197,10 +198,21 @@ async def do_download(job) -> DownloadJob:
                                                    timeout=60)
                 # seek to the slice point in the file and write the stream
                 f.seek(job.start)
+                size = job.end - job.start
+                written = 0
+                percent_reported = 0
                 while True:
                     chunk = await content.read(4096)
                     if not chunk:
                         break
                     f.write(chunk)
+                    # report status
+                    written += len(chunk)
+                    percent = math.floor(written / size * 100)
+                    if percent > percent_reported and percent % 25 == 0:
+                        # TODO(domz): why does print work but log doesn't
+                        print(f"{job.blob}-{job.start}-{job.end} is "
+                              f"{percent}% complete")
+                    percent_reported = percent
             job.elapsed = t.elapsed
             return job
