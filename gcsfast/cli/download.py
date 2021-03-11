@@ -195,7 +195,7 @@ async def do_download(job) -> DownloadJob:
                 content = await client.get_content(job.bucket,
                                                    job.blob,
                                                    headers=headers,
-                                                   timeout=60)
+                                                   timeout=600)
                 # seek to the slice point in the file and write the stream
                 f.seek(job.start)
                 size = job.end - job.start
