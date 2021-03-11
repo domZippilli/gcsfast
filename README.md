@@ -10,6 +10,14 @@ and all usage of it is at your sole discretion. Any costs or damages resulting
 from its use are the sole responsibility of the user. You are advised to read
 and understand all source code in this software before using it for any reason.
 
+### Updates
+
+- **2021-03**: Downloads now use only buffer memory and do not store the slices contents in memory.
+- **2021-02**: Commands simplified, now just `upload` and `download`. Cleanup and general improvements.
+- **2020**:
+  - Sliced uploads from unbounded input streams (e.g., pipe to stdin)
+  - All-new aiohttp download implementation by way of [talkiq/gcloud-aio](https://github.com/talkiq/gcloud-aio) allows for fast downloads with less concurrency tuning.
+
 ---
 
 ## Step-by-step installation for Ubuntu 18.04 LTS in GCP
