@@ -53,12 +53,13 @@ class DownloadJob(dict):
         self.__dict__.update(d)
 
 
-class ConcurrencySettings(dict):
-    def __init__(self, processes=None):
+class DownloadSettings(dict):
+    def __init__(self, processes=None, write_buffer_size=(2 * 1024 * 1024)):
         if processes:
             self["processes"] = processes
         else:
             self["processes"] = cpu_count()
+        self["write_buffer_size"] = write_buffer_size
 
     def __str__(self):
         return super().__str__()
@@ -74,18 +75,21 @@ class ConcurrencySettings(dict):
         self.__dict__.update(d)
 
 
-concurrency_settings = ConcurrencySettings()
+download_settings = DownloadSettings()
 
 
-def download_command(concurrency_multiple: float, file_args: str) -> None:
+def download_command(concurrency_multiple: float, write_buffer: int,
+                     file_args: str) -> None:
     """Downloads a single file.
 
     Arguments:
         object_path {str} -- The path to the GCS object.
         output_file {str} -- The path to the output file.
     """
-    concurrency_settings["processes"] = round(concurrency_settings.processes *
-                                              concurrency_multiple)
+    download_settings["processes"] = round(download_settings.processes *
+                                           concurrency_multiple)
+    if write_buffer:
+        download_settings["write_buffer_size"] = write_buffer
 
     # strip gs://, it's implied
     file_args = [x.replace("gs://", "") for x in file_args]
@@ -128,7 +132,7 @@ async def download_objects(source_dest_pairs: List[Tuple[str, str]]):
                      download.output, download.start, download.end)
         overall_bytes = 0
         # Send the downloads into an asyncio pool
-        async with Pool(processes=concurrency_settings.processes) as pool:
+        async with Pool(processes=download_settings.processes) as pool:
             async for job in pool.map(do_download, downloads):
                 job_bytes = (int(job.end) - int(job.start))
                 overall_bytes += job_bytes
@@ -167,7 +171,7 @@ async def describe_downloads(
         source, dest = pair
         source_size = int(source["size"])
         for start, end in subdivide_range(0, source_size,
-                                          concurrency_settings.processes):
+                                          download_settings.processes):
             downloads.append(
                 DownloadJob(source["bucket"], source["name"], dest, start,
                             end))
@@ -182,12 +186,15 @@ async def do_download(job) -> DownloadJob:
             with open(job.output, mode='wb') as f:
                 f.seek(job.start)
                 headers = {"Range": f"bytes={job.start}-{job.end}"}
-                # TODO: This is putting the whole download in memory.
-                # Partially, this problem will be solved by using slices,
-                # but proper buffered async writing would be nice
-                f.write(await client.download(job.bucket,
-                                              job.blob,
-                                              headers=headers,
-                                              timeout=60))
+                content = await client.get_content(job.bucket,
+                                                   job.blob,
+                                                   headers=headers,
+                                                   timeout=60)
+                while True:
+                    chunk = await content.read(
+                        download_settings["write_buffer_size"])
+                    if not chunk:
+                        break
+                    f.write(chunk)
             job.elapsed = t.elapsed
             return job
