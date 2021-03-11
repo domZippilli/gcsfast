@@ -73,9 +73,15 @@ if __name__ == "__main__":
     "goodput.",
     default=1,
     type=float)
+@click.option("-b",
+              "--write_buffer_size",
+              required=False,
+              help="The size for the write buffer, in bytes.",
+              default=2 * 1024 * 1024,
+              type=int)
 @click.argument('file_args', nargs=-1, required=True)
-def download(context: object, concurrency_multiple: int,
-             file_args: str) -> None:
+def download(context: object, concurrency_multiple: float,
+             write_buffer_size: int, file_args: str) -> None:
     """
     Asyncio-based file download from GCS.
 
@@ -86,7 +92,7 @@ def download(context: object, concurrency_multiple: int,
           downloaded to the file it is paired with.
     """
     init(**context.obj)
-    return download_command(concurrency_multiple, file_args)
+    return download_command(concurrency_multiple, write_buffer_size, file_args)
 
 
 # pylint: disable=too-many-arguments
