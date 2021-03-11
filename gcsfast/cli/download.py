@@ -183,16 +183,22 @@ async def do_download(job) -> DownloadJob:
     async with aiohttp.ClientSession() as session:
         client = Storage(session=session)
         with Timer() as t:
-            with open(job.output, mode='wb') as f:
-                f.seek(job.start)
+            # only one worker should create the file
+            try:
+                f = open(job.output, 'r+b')
+            except IOError:
+                f = open(job.output, 'wb')
+            with f:
+                # make the range request and get the content stream
                 headers = {"Range": f"bytes={job.start}-{job.end}"}
                 content = await client.get_content(job.bucket,
                                                    job.blob,
                                                    headers=headers,
                                                    timeout=60)
+                # seek to the slice point in the file and write the stream
+                f.seek(job.start)
                 while True:
-                    chunk = await content.read(
-                        download_settings["write_buffer_size"])
+                    chunk = await content.read(4096)
                     if not chunk:
                         break
                     f.write(chunk)
