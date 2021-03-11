@@ -202,7 +202,8 @@ async def do_download(job) -> DownloadJob:
                 written = 0
                 percent_reported = 0
                 while True:
-                    chunk = await content.read(4096)
+                    chunk = await content.read(
+                        download_settings["write_buffer_size"])
                     if not chunk:
                         break
                     f.write(chunk)
