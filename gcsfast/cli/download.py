@@ -192,10 +192,10 @@ async def do_download(job) -> DownloadJob:
             with f:
                 # make the range request and get the content stream
                 headers = {"Range": f"bytes={job.start}-{job.end}"}
-                content = await client.get_content(job.bucket,
-                                                   job.blob,
-                                                   headers=headers,
-                                                   timeout=600)
+                content = await client.download_stream(job.bucket,
+                                                       job.blob,
+                                                       headers=headers,
+                                                       timeout=600)
                 # seek to the slice point in the file and write the stream
                 f.seek(job.start)
                 size = job.end - job.start

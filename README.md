@@ -53,19 +53,6 @@ cd gcsfast
 python3.8 -m pip install -e .
 ```
 
-4. [Temporary] You need a special fork of gcloud-aio-storage, which has
-   changes required by gcsfast. These changes have been accepted into the
-   library, but the new version hasn't been released yet, so clone the
-   fork and install from the latest source to overwrite the installed
-   version:
-
-```shell
-cd ../
-git clone https://github.com/domZippilli/gcloud-aio.git
-cd gcloud-aio/storage
-python3.8 -m pip install .
-```
-
 5. You will probably get a warning like:
    `WARNING: The script gcsfast is installed in '/home/$USER/.local/bin' which is not on PATH.` To fix this, simply modify your path:
 
