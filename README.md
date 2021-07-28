@@ -1,5 +1,7 @@
 # gcsfast
 
+**Update July 2021: Use [gcloud storage](https://cloud.google.com/blog/products/storage-data-transfer/new-gcloud-storage-enables-super-fast-data-transfers) instead! It's _even faster_.**
+
 Experimental fast file transfer for Google Cloud Storage.
 
 ## Status
