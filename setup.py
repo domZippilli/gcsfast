@@ -43,12 +43,8 @@ setup(
     keywords='google cloud storage transfer gbps',
     packages=[
         'gcsfast', 
-        'gcsfast.cli', 
-        'gcsfast.cli.upload', 
-        'gcsfast.cli.download', 
-        'gcsfast.libraries',
-        'gcsfast.libraries.thread',
-        'gcsfast.libraries.gcs'
+        'gcsfast.cli',  
+        'gcsfast.libraries'
     ],  # TODO: more specific
     python_requires='>=3.5, <4',
     install_requires=[
